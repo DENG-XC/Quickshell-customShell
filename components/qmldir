@@ -1,0 +1,28 @@
+singleton Config 1.0 Config.qml
+singleton Buttoncommand 1.0 Buttoncommand.qml
+singleton Clock 1.0 Clock.qml
+singleton WeatherService 1.0 WeatherService.qml
+Workspaces 1.0 Workspaces.qml
+UpWorkspaces 1.0 UpWorkspaces.qml
+DownWorkspaces 1.0 DownWorkspaces.qml
+Topbarbutton 1.0 Topbarbutton.qml
+Rightbutton 1.0 Rightbutton.qml
+Shapepath 1.0 Shapepath.qml
+Weather 1.0 Weather.qml
+MiniCalendar 1.0 MiniCalendar.qml
+NotifyPop 1.0 NotifyPop.qml
+NotifyItem 1.0 NotifyItem.qml
+MediaComponent 1.0 MediaComponent.qml
+Volumepop 1.0 Volumepop.qml
+LockSurface 1.0 LockSurface.qml
+Logout 1.0 Logout.qml
+LogoutButton 1.0 LogoutButton.qml
+ScreenLock 1.0 ScreenLock.qml
+SearchApp 1.0 SearchApp.qml
+GlobalMouseArea 1.0 GlobalMouseArea.qml
+Clipboard 1.0 Clipboard.qml
+PerformanceComponent 1.0 PerformanceComponent.qml
+Applauncher 1.0 Applauncher.qml
+Menu 1.0 Menu.qml
+AppSwitch 1.0 AppSwitch.qml
+BottomContainer 1.0 BottomContainer.qml
