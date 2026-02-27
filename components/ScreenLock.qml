@@ -6,19 +6,7 @@ import QtQuick
 ShellRoot {
     id: root
 
-    property string userName: ""
     property bool unlock: true
-
-    Process {
-        id: currentwsproc
-        command: ["whoami"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.userName = this.text;
-            }
-        }
-    }
 
     WlSessionLock {
         id: lock

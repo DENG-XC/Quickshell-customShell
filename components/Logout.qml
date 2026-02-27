@@ -7,11 +7,10 @@ import Quickshell.Wayland
 Scope {
     id: logoutRoot
 
-    property string username
     property string uptime
     property list<LogoutButton> buttons: [
         LogoutButton {
-            command: "qs -p ~/.config/quickshell/shell/LockScreen.qml"
+            command: "qs -p " + Config.shellDir + "/LockScreen.qml"
             keybind: Qt.Key_K
             text: ""
         },
@@ -42,16 +41,6 @@ Scope {
         }
     }
 
-    Process {
-        id: getusername
-        command: ["whoami"]
-        running: true
-
-        stdout: StdioCollector {
-            onStreamFinished: logoutRoot.username = this.text
-        }
-    }
-
     Variants {
         id: logoutScreen
         model: Quickshell.screens
@@ -73,12 +62,12 @@ Scope {
                 focus: true
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape)
-                        Qt.quit();
+                        Config.logoutVisible = false;
                     else {
                         for (let i = 0; i < buttons.length; i++) {
                             let button = buttons[i];
                             if (event.key === button.keybind)
-                                button.exec();
+                                button.exec(button.text);
                         }
                     }
                 }
@@ -123,7 +112,7 @@ Scope {
 
                             Text {
                                 id: user
-                                text: logoutRoot.username
+                                text: Config.userName
                                 color: Config.textHover
                                 font.family: "JetBrains Mono Nerd Font 10"
                                 font.pointSize: 14
@@ -194,7 +183,7 @@ Scope {
                                         buttonhover.color = "transparent";
                                     }
                                     onClicked: {
-                                        modelData.exec();
+                                        modelData.exec(modelData.text);
                                     }
                                 }
 

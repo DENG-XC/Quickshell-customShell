@@ -39,6 +39,8 @@ Singleton {
     property bool toggleCollapseApp: false
     property bool killLoader: false
     property string fontFamily: "JetBrains Mono Nerd Font 10"
+    property string userName: ""
+    property string shellDir: ""
     property var filteredAppsModel: []
 
     onCurrentworkspaceChanged: hoveredWorkspace = -1
@@ -168,6 +170,19 @@ Singleton {
             onStreamFinished: {
                 let text = this.text.trim();
                 config.countWorkspace = text ? parseInt(text) : 1;
+            }
+        }
+    }
+
+    Process {
+        id: homedirproc
+        command: ["whoami"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let text = this.text.trim();
+                config.userName = text;
+                config.shellDir = "/home/" + text + "/.config/quickshell/shell";
             }
         }
     }

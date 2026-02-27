@@ -26,7 +26,7 @@ FloatingWindow {
 
     Process {
         id: wallPapersList
-        command: ["python3", "./scripts/wallPaper.py"]
+        command: ["python3", Config.shellDir + "/scripts/wallPaper.py"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -83,12 +83,12 @@ FloatingWindow {
     }
 
     function deleteItem(recordedTime) {
-        actionProcess.command = ["python3", "./scripts/clipManager.py", "delete", recordedTime];
+        actionProcess.command = ["python3", Config.shellDir + "/scripts/clipManager.py", "delete", recordedTime];
         actionProcess.running = true;
     }
 
     function pinItem(recordedTime) {
-        actionProcess.command = ["python3", "./scripts/clipManager.py", "pin", recordedTime];
+        actionProcess.command = ["python3", Config.shellDir + "/scripts/clipManager.py", "pin", recordedTime];
         actionProcess.running = true;
     }
 

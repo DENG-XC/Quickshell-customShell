@@ -11,8 +11,12 @@ QtObject {
         command: ["bash", "-c", button.command]
     }
 
-    function exec() {
-        process.startDetached();
-        Qt.quit();
+    function exec(text) {
+        if (text === "") {
+            process.startDetached();
+        } else {
+            process.startDetached();
+            Qt.quit();
+        }
     }
 }

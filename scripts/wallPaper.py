@@ -1,7 +1,7 @@
 import os
 import json
 
-WALLPAPER_DIR = os.path.expanduser("~/.config/quickshell/shell/wallpaper")
+WALLPAPER_DIR = os.path.expanduser("/home/deng/.config/quickshell/shell/wallpaper")
 
 IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg')
 

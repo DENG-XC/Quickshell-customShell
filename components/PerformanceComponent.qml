@@ -15,7 +15,7 @@ Rectangle {
 
                                     Process {
                                         id: systemInfo
-                                        command: ["python3", "./scripts/systemInfo.py"]
+                                        command: ["python3", Config.shellDir + "/scripts/systemInfo.py"]
                                         running: true
                                         stdout: StdioCollector {
                                             onStreamFinished: {

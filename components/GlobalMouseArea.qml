@@ -18,7 +18,6 @@ LazyLoader {
         Item {
             id: exitScreen
             anchors.fill: parent
-            //z: 1000
 
             MouseArea {
                 id: globalMouseArea

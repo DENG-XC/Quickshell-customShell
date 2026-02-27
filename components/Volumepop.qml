@@ -22,10 +22,6 @@ Scope {
     }
 
     property bool shouldShowOsd: false
-    property color text: "#ffffff"
-    property color textHover: "#65798b"
-    property color background: "#1e2127"
-    property color foreground: "#282b31"
     property int volume: Math.round((Pipewire.defaultAudioSink?.audio.volume ?? 0) * 100)
 
     Timer {
