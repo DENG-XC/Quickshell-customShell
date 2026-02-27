@@ -67,9 +67,9 @@ Spawn-at-startup "qs" "-p" "/home/yourusername/.config/quickshell/shell/Shell.qm
 
 ```kdl
 // ~/.config/niri/config.kdl
-spawn-at-startup "swww-daemon" # run swww-daemon on startup
-spawn-at-startup "clipse" "-listen" # run listener on startup
-Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } # toggle AppLauncher
+spawn-at-startup "swww-daemon" // run swww-daemon on startup
+spawn-at-startup "clipse" "-listen" // run listener on startup
+Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } // toggle AppLauncher
 ```
 
 ### Theme Colors
@@ -167,9 +167,9 @@ Spawn-at-startup "qs" "-p" "/home/你的用户名/.config/quickshell/shell/Shell
 
 ```kdl
 // ~/.config/niri/config.kdl
-spawn-at-startup "swww-daemon" # 启动 swww-daemon
-spawn-at-startup "clipse" "-listen" # 启动 clipse 监听器
-Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } # 切换应用启动器
+spawn-at-startup "swww-daemon" // 启动 swww-daemon
+spawn-at-startup "clipse" "-listen" // 启动 clipse 监听器
+Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } // 切换应用启动器
 ```
 
 ### 主题颜色
