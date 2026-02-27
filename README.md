@@ -65,13 +65,12 @@ Spawn-at-startup "qs" "-p" "/home/yourusername/.config/quickshell/shell/Shell.qm
 
 ## Set up
 
+```kdl
 // ~/.config/niri/config.kdl
-# run servers on startup
 spawn-at-startup "swww-daemon" # run swww-daemon on startup
 spawn-at-startup "clipse" "-listen" # run listener on startup
-
-# key-bind configuration
 Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } # toggle AppLauncher
+```
 
 ### Theme Colors
 
@@ -166,13 +165,12 @@ Spawn-at-startup "qs" "-p" "/home/你的用户名/.config/quickshell/shell/Shell
 
 ## 配置
 
+```kdl
 // ~/.config/niri/config.kdl
-# 启动时运行服务
 spawn-at-startup "swww-daemon" # 启动 swww-daemon
 spawn-at-startup "clipse" "-listen" # 启动 clipse 监听器
-
-# 快捷键绑定
 Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/shell/Shell.qml ipc call Config setAppLauncher"; } # 切换应用启动器
+```
 
 ### 主题颜色
 
