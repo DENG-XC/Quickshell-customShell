@@ -5,6 +5,10 @@ A custom desktop shell component set built with [Quickshell](https://quickshell.
 > [!NOTE]
 > This project has only been tested on a single 2K monitor. Compatibility with other resolutions or multi-monitor setups is not guaranteed.
 
+## Demo
+
+[观看演示视频](https://www.bilibili.com/video/BV1z1ADzvESh) | [Watch Demo](https://www.bilibili.com/video/BV1z1ADzvESh)
+
 ## Features
 
 - Top Bar
@@ -26,16 +30,32 @@ A custom desktop shell component set built with [Quickshell](https://quickshell.
 | [quickshell](https://quickshell.outfoxxed.me/) | ✅ Yes | The desktop shell framework |
 | [clipse](https://github.com/savedra1/clipse) | ✅ Yes | Clipboard manager for Wayland |
 | [swww](https://github.com/LGFae/swww) | ✅ Yes | Wallpaper daemon for Wayland |
+| [hyprpicker](https://github.com/hyprwm/hyprpicker) | ✅ Yes | Color picker for Wayland |
 
 ## Installation
 
 ### 1. Install dependencies
 
 ```bash
-# Arch Linux (AUR)
-yay -S niri quickshell clipse swww
+# Fedora
 
-# Or use your preferred package manager
+# add niri copr
+# sudo dnf copr enable yalter/niri
+
+# add quickshell copr
+# sudo dnf copr enable errornointernet/quickshell
+
+# add hyprpicker/swww copr
+# sudo dnf copr enable solopasha/hyprland 
+
+# git clone https://github.com/savedra1/clipse
+# cd clipse
+# go mod tidy
+# make wayland # || make x11 || make darwin
+
+sudo dnf install niri quickshell swww hyprpicker
+
+# Or use your preferred os
 ```
 
 ### 2. Clone the repository
@@ -95,6 +115,7 @@ property color foreground: "#181b21"
 - [niri](https://github.com/YaLTeR/niri) - The scrollable-tiling Wayland compositor
 - [clipse](https://github.com/savedra1/clipse) - Clipboard manager for Wayland
 - [swww](https://github.com/LGFae/swww) - Wallpaper daemon
+- [hyprpicker](https://github.com/hyprwm/hyprpicker) - Color picker for Wayland
 
 ---
 
@@ -104,6 +125,10 @@ property color foreground: "#181b21"
 
 > [!NOTE]
 > 本项目仅在单屏 2K 分辨率下测试过，不保证在其他分辨率或多屏环境下的兼容性。
+
+## 演示
+
+[观看演示视频](https://www.bilibili.com/video/BV1z1ADzvESh)
 
 ## 功能特性
 
@@ -126,16 +151,32 @@ property color foreground: "#181b21"
 | [quickshell](https://quickshell.outfoxxed.me/) | ✅ 是 | 桌面 shell 框架 |
 | [clipse](https://github.com/savedra1/clipse) | ✅ 是 | Wayland 剪贴板管理器 |
 | [swww](https://github.com/LGFae/swww) | ✅ 是 | Wayland 壁纸守护进程 |
+| [hyprpicker](https://github.com/hyprwm/hyprpicker) | ✅ 是 | Wayland 取色器 |
 
 ## 安装
 
 ### 1. 安装依赖
 
 ```bash
-# Arch Linux (AUR)
-yay -S niri quickshell clipse swww
+# Fedora
 
-# 或使用你喜欢的包管理器
+# add niri copr
+# sudo dnf copr enable yalter/niri
+
+# add quickshell copr
+# sudo dnf copr enable errornointernet/quickshell
+
+# add hyprpicker/swww copr
+# sudo dnf copr enable solopasha/hyprland 
+
+# git clone https://github.com/savedra1/clipse
+# cd clipse
+# go mod tidy
+# make wayland # || make x11 || make darwin
+
+sudo dnf install niri quickshell swww hyprpicker
+
+# 或使用你喜欢的发行版
 ```
 
 ### 2. 克隆仓库
@@ -195,3 +236,4 @@ property color foreground: "#181b21"
 - [niri](https://github.com/YaLTeR/niri) - 滚动平铺 Wayland 合成器
 - [clipse](https://github.com/savedra1/clipse) - Wayland 剪贴板管理器
 - [swww](https://github.com/LGFae/swww) - 壁纸守护进程
+- [hyprpicker](https://github.com/hyprwm/hyprpicker) - Wayland 取色器
