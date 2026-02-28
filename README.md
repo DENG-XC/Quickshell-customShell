@@ -7,7 +7,7 @@ A custom desktop shell component set built with [Quickshell](https://quickshell.
 
 ## Demo
 
-
+[观看演示视频/更高质量](https://www.bilibili.com/video/BV1z1ADzvESh) | [Watch Demo/better quality](https://www.bilibili.com/video/BV1z1ADzvESh)
 
 https://github.com/user-attachments/assets/412221cb-9ca1-45a6-a360-76ce9102dcbf
 
