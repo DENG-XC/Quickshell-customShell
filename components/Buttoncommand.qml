@@ -37,6 +37,12 @@ Singleton {
 
     readonly property var wifiDisconnectProcess: Process {}
 
+    readonly property var setStruts: Process {}
+
+    function setStrutsExec(left) {
+        setStruts.exec(["python3", Config.shellDir + "/scripts/setStruts.py", left]);
+    }
+
     function bluetoothDisconnect(address) {
         blueToothDisconnect.exec(["bluetoothctl", "remove", address]);
     }

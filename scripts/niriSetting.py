@@ -264,29 +264,29 @@ def set_niri_config(value):
             # 启用：取消注释
             new_block = re.sub(r"^(\s*)//\s*", r"\1", new_block, flags=re.MULTILINE)
 
-            # 更新值
-            if value["struts"].get("left"):
+            # 更新值（使用 is not None 来正确处理 0）
+            if value["struts"].get("left") is not None:
                 new_block = re.sub(
                     r"^(\s*)left\s+\d+",
                     rf"\1left {value['struts']['left']}",
                     new_block,
                     flags=re.MULTILINE,
                 )
-            if value["struts"].get("right"):
+            if value["struts"].get("right") is not None:
                 new_block = re.sub(
                     r"^(\s*)right\s+\d+",
                     rf"\1right {value['struts']['right']}",
                     new_block,
                     flags=re.MULTILINE,
                 )
-            if value["struts"].get("top"):
+            if value["struts"].get("top") is not None:
                 new_block = re.sub(
                     r"^(\s*)top\s+\d+",
                     rf"\1top {value['struts']['top']}",
                     new_block,
                     flags=re.MULTILINE,
                 )
-            if value["struts"].get("bottom"):
+            if value["struts"].get("bottom") is not None:
                 new_block = re.sub(
                     r"^(\s*)bottom\s+\d+",
                     rf"\1bottom {value['struts']['bottom']}",
@@ -312,23 +312,6 @@ def set_niri_config(value):
 
 
 if __name__ == "__main__":
-    # 测试数据
-    # test_value = {
-    #     "layout": {"gaps": 20},
-    #     "corner_radius": {"radius": 15},
-    #     "focus-ring": {"enable": False, "width": 3, "color": "#000000"},
-    #     "border": {"enable": False, "width": 6, "color": "#ffc87f"},
-    #     "shadow": {
-    #         "enable": False,
-    #         "softness": 30,
-    #         "spread": 5,
-    #         "offset": {"x": 0, "y": 5},
-    #         "color": "#000000",
-    #     },
-    #     "animations": {"enable": True, "slowdown": 1.0},
-    #     "struts": {"enabled": False, "left": 64, "right": 64, "top": 64, "bottom": 64},
-    # }
-
     args = sys.argv[1:]
 
     value = json.loads(args[0])

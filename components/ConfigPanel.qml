@@ -18,6 +18,7 @@ FloatingWindow {
     property var connectedModel: []
     property var wifiList: []
     property var wifiConnected: []
+    property var monitors: []
     property int selectedWallpaperIndex: 0
 
     onVisibleChanged: {
@@ -162,6 +163,69 @@ FloatingWindow {
         }
     }
 
+    Process {
+        id: niriOutput
+        command: ["niri", "msg", "outputs"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let outputs = this.text;
+                    let lines = outputs.split("\n");
+                    let monitors = [];
+                    let monitorInfo = null;
+                    let inBlock = false;
+
+                    for (let line of lines) {
+                        let trim = line.trim();
+                        if (trim.startsWith("Output")) {
+                            if (monitorInfo && monitorInfo.name) {
+                                monitors.push(monitorInfo);
+                            }
+
+                            monitorInfo = {
+                                name: "",
+                                modes: [],
+                                currentMode: "",
+                                scale: "1"
+                            };
+                            let monitorMatch = trim.match(/Output\s+"[^"]*"\s+\(([^)]+)\)/);
+                            if (monitorMatch) {
+                                monitorInfo.name = monitorMatch[1];
+                            }
+                            inBlock = false;
+                        } else if (trim.startsWith("Scale:")) {
+                            // 解析 Scale: 1
+                            let scaleMatch = trim.match(/Scale:\s*([\d.]+)/);
+                            if (scaleMatch && monitorInfo) {
+                                monitorInfo.scale = scaleMatch[1];
+                            }
+                        } else if (trim.startsWith("Available modes:")) {
+                            inBlock = true;
+                        } else if (inBlock) {
+                            let modeMatch = trim.match(/(\d+x\d+@\d+\.\d+)/);
+                            if (modeMatch && trim.includes("current")) {
+                                monitorInfo.currentMode = modeMatch[1];
+                            } else if (modeMatch) {
+                                monitorInfo.modes.push(modeMatch[1]);
+                            }
+                        } else if (trim === "") {
+                            inBlock = false;
+                        }
+                    }
+
+                    if (monitorInfo && monitorInfo.name) {
+                        monitors.push(monitorInfo);
+                    }
+
+                    configPanel.monitors = monitors;
+                } catch (e) {
+                    console.warn("Failed to parse niri output:", e);
+                }
+            }
+        }
+    }
+
     Timer {
         interval: 11000
         running: configPanel.currentPanel === 2
@@ -230,8 +294,8 @@ FloatingWindow {
                 Layout.preferredWidth: Config.sc(220)
                 Layout.fillHeight: true
                 color: Config.foreground
-                topLeftRadius: Config.sc(45)
-                bottomLeftRadius: Config.sc(45)
+                topLeftRadius: Config.sc(35)
+                bottomLeftRadius: Config.sc(35)
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -276,6 +340,13 @@ FloatingWindow {
                         onClicked: configPanel.currentPanel = 3
                     }
 
+                    SidebarItem {
+                        icon: "\uf108"
+                        label: "Display"
+                        isActive: configPanel.currentPanel === 4
+                        onClicked: configPanel.currentPanel = 4
+                    }
+
                     Item {
                         Layout.fillHeight: true
                     }
@@ -298,6 +369,8 @@ FloatingWindow {
                             return blueToothPanelComponent;
                         else if (configPanel.currentPanel === 3)
                             return wifiPanelComponent;
+                        else if (configPanel.currentPanel === 4)
+                            return displayPanelComponent;
                         return null;
                     }
 
@@ -319,6 +392,11 @@ FloatingWindow {
                     Component {
                         id: wifiPanelComponent
                         WifiPanel {}
+                    }
+
+                    Component {
+                        id: displayPanelComponent
+                        DisplayPanel {}
                     }
                 }
             }
@@ -376,7 +454,9 @@ FloatingWindow {
 
     // Toggle Switch
     component ToggleSwitch: Rectangle {
+        id: toggleSwitch
         property bool checked: true
+        property bool bindable: false  // When true, checked is controlled externally
         signal toggled
 
         width: Config.sc(44)
@@ -404,8 +484,10 @@ FloatingWindow {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                parent.checked = !parent.checked;
-                parent.toggled();
+                if (!toggleSwitch.bindable) {
+                    toggleSwitch.checked = !toggleSwitch.checked;
+                }
+                toggleSwitch.toggled();
             }
         }
     }
@@ -413,10 +495,8 @@ FloatingWindow {
     // Appearance Panel
     component AppearancePanel: Rectangle {
         color: Config.background
-        topRightRadius: Config.sc(45)
-        bottomRightRadius: Config.sc(45)
-
-        property var niriData: Config.niriInfo
+        topRightRadius: Config.sc(35)
+        bottomRightRadius: Config.sc(35)
 
         ColumnLayout {
             anchors.fill: parent
@@ -488,7 +568,7 @@ FloatingWindow {
                         onEntered: parent.hovered = true
                         onExited: parent.hovered = false
                         onClicked: {
-                            Buttoncommand.niriSettingExec(niriData);
+                            Buttoncommand.niriSettingExec(Config.niriInfo);
                         }
                     }
                 }
@@ -602,9 +682,9 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData ? niriData["layout"]["gaps"] : "20"
+                                        value: Config.niriInfo ? Config.niriInfo["layout"]["gaps"] : "20"
                                         suffix: "px"
-                                        onValueChanged: niriData["layout"]["gaps"] = value
+                                        onValueChanged: Config.niriInfo["layout"]["gaps"] = value
                                     }
                                 }
 
@@ -639,9 +719,9 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["corner_radius"] ? niriData["corner_radius"]["radius"] : "15"
+                                        value: Config.niriInfo && Config.niriInfo["corner_radius"] ? Config.niriInfo["corner_radius"]["radius"] : "15"
                                         suffix: "px"
-                                        onValueChanged: niriData["corner_radius"]["radius"] = value
+                                        onValueChanged: Config.niriInfo["corner_radius"]["radius"] = value
                                     }
                                 }
                             }
@@ -696,8 +776,8 @@ FloatingWindow {
 
                                     ToggleSwitch {
                                         id: focusRingEnableSwitch
-                                        checked: niriData ? niriData["focus-ring"]["enable"] : true
-                                        onToggled: niriData["focus-ring"]["enable"] = checked
+                                        checked: Config.niriInfo ? Config.niriInfo["focus-ring"]["enable"] : true
+                                        onToggled: Config.niriInfo["focus-ring"]["enable"] = checked
                                     }
                                 }
 
@@ -733,10 +813,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData ? niriData["focus-ring"]["width"] : "4"
+                                        value: Config.niriInfo ? Config.niriInfo["focus-ring"]["width"] : "4"
                                         suffix: "px"
                                         enabled: focusRingEnableSwitch.checked
-                                        onValueChanged: niriData["focus-ring"]["width"] = value
+                                        onValueChanged: Config.niriInfo["focus-ring"]["width"] = value
                                     }
                                 }
 
@@ -796,7 +876,7 @@ FloatingWindow {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: Config.sc(8)
                                                 anchors.rightMargin: Config.sc(8)
-                                                text: niriData ? niriData["focus-ring"]["color"] : "#7fc8ff"
+                                                text: Config.niriInfo ? Config.niriInfo["focus-ring"]["color"] : "#7fc8ff"
                                                 color: Config.text
                                                 font.pixelSize: Config.scFont(15)
                                                 font.family: Config.fontFamily
@@ -805,7 +885,7 @@ FloatingWindow {
                                                 }
                                                 selectByMouse: true
                                                 enabled: focusRingEnableSwitch.checked
-                                                onTextChanged: niriData["focus-ring"]["color"] = text
+                                                onTextChanged: Config.niriInfo["focus-ring"]["color"] = text
                                             }
                                         }
                                     }
@@ -862,8 +942,8 @@ FloatingWindow {
 
                                     ToggleSwitch {
                                         id: borderEnableSwitch
-                                        checked: niriData ? niriData["border"]["enable"] : true
-                                        onToggled: niriData["border"]["enable"] = checked
+                                        checked: Config.niriInfo ? Config.niriInfo["border"]["enable"] : true
+                                        onToggled: Config.niriInfo["border"]["enable"] = checked
                                     }
                                 }
 
@@ -899,10 +979,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData ? niriData["border"]["width"] : "4"
+                                        value: Config.niriInfo ? Config.niriInfo["border"]["width"] : "4"
                                         suffix: "px"
                                         enabled: borderEnableSwitch.checked
-                                        onValueChanged: niriData["border"]["width"] = value
+                                        onValueChanged: Config.niriInfo["border"]["width"] = value
                                     }
                                 }
 
@@ -962,7 +1042,7 @@ FloatingWindow {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: Config.sc(8)
                                                 anchors.rightMargin: Config.sc(8)
-                                                text: niriData ? niriData["border"]["color"] : "#ffc87f"
+                                                text: Config.niriInfo ? Config.niriInfo["border"]["color"] : "#ffc87f"
                                                 color: Config.text
                                                 font.pixelSize: Config.scFont(15)
                                                 font.family: Config.fontFamily
@@ -971,7 +1051,7 @@ FloatingWindow {
                                                 }
                                                 selectByMouse: true
                                                 enabled: borderEnableSwitch.checked
-                                                onTextChanged: niriData["border"]["color"] = text
+                                                onTextChanged: Config.niriInfo["border"]["color"] = text
                                             }
                                         }
                                     }
@@ -1028,8 +1108,8 @@ FloatingWindow {
 
                                     ToggleSwitch {
                                         id: shadowEnableSwitch
-                                        checked: niriData ? niriData["shadow"]["enable"] : false
-                                        onToggled: niriData["shadow"]["enable"] = checked
+                                        checked: Config.niriInfo ? Config.niriInfo["shadow"]["enable"] : false
+                                        onToggled: Config.niriInfo["shadow"]["enable"] = checked
                                     }
                                 }
 
@@ -1065,10 +1145,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData ? niriData["shadow"]["softness"] : "30"
+                                        value: Config.niriInfo ? Config.niriInfo["shadow"]["softness"] : "30"
                                         suffix: "px"
                                         enabled: shadowEnableSwitch.checked
-                                        onValueChanged: niriData["shadow"]["softness"] = value
+                                        onValueChanged: Config.niriInfo["shadow"]["softness"] = value
                                     }
                                 }
 
@@ -1104,10 +1184,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData ? niriData["shadow"]["spread"] : "5"
+                                        value: Config.niriInfo ? Config.niriInfo["shadow"]["spread"] : "5"
                                         suffix: "px"
                                         enabled: shadowEnableSwitch.checked
-                                        onValueChanged: niriData["shadow"]["spread"] = value
+                                        onValueChanged: Config.niriInfo["shadow"]["spread"] = value
                                     }
                                 }
 
@@ -1146,17 +1226,17 @@ FloatingWindow {
                                         spacing: Config.sc(8)
 
                                         NumberField {
-                                            value: niriData && niriData["shadow"]["offset"] ? niriData["shadow"]["offset"]["x"] : "0"
+                                            value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["x"] : "0"
                                             suffix: "X"
                                             enabled: shadowEnableSwitch.checked
-                                            onValueChanged: niriData["shadow"]["offset"]["x"] = value
+                                            onValueChanged: Config.niriInfo["shadow"]["offset"]["x"] = value
                                         }
 
                                         NumberField {
-                                            value: niriData && niriData["shadow"]["offset"] ? niriData["shadow"]["offset"]["y"] : "5"
+                                            value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["y"] : "5"
                                             suffix: "Y"
                                             enabled: shadowEnableSwitch.checked
-                                            onValueChanged: niriData["shadow"]["offset"]["y"] = value
+                                            onValueChanged: Config.niriInfo["shadow"]["offset"]["y"] = value
                                         }
                                     }
                                 }
@@ -1217,7 +1297,7 @@ FloatingWindow {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: Config.sc(8)
                                                 anchors.rightMargin: Config.sc(8)
-                                                text: niriData ? niriData["shadow"]["color"] : "#000000"
+                                                text: Config.niriInfo ? Config.niriInfo["shadow"]["color"] : "#000000"
                                                 color: Config.text
                                                 font.pixelSize: Config.scFont(15)
                                                 font.family: Config.fontFamily
@@ -1226,7 +1306,7 @@ FloatingWindow {
                                                 }
                                                 selectByMouse: true
                                                 enabled: shadowEnableSwitch.checked
-                                                onTextChanged: niriData["shadow"]["color"] = text
+                                                onTextChanged: Config.niriInfo["shadow"]["color"] = text
                                             }
                                         }
                                     }
@@ -1283,8 +1363,8 @@ FloatingWindow {
 
                                     ToggleSwitch {
                                         id: animationsEnableSwitch
-                                        checked: niriData ? niriData["animations"]["enable"] : true
-                                        onToggled: niriData["animations"]["enable"] = checked
+                                        checked: Config.niriInfo ? Config.niriInfo["animations"]["enable"] : true
+                                        onToggled: Config.niriInfo["animations"]["enable"] = checked
                                     }
                                 }
 
@@ -1320,10 +1400,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["animations"] ? niriData["animations"]["slowdown"] : "1.0"
+                                        value: Config.niriInfo && Config.niriInfo["animations"] ? Config.niriInfo["animations"]["slowdown"] : "1.0"
                                         suffix: "x"
                                         enabled: animationsEnableSwitch.checked
-                                        onValueChanged: niriData["animations"]["slowdown"] = value
+                                        onValueChanged: Config.niriInfo["animations"]["slowdown"] = value
                                     }
                                 }
                             }
@@ -1378,8 +1458,8 @@ FloatingWindow {
 
                                     ToggleSwitch {
                                         id: extraGapsEnableSwitch
-                                        checked: niriData ? niriData["struts"]["enabled"] : false
-                                        onToggled: niriData["struts"]["enabled"] = checked
+                                        checked: Config.niriInfo ? Config.niriInfo["struts"]["enabled"] : false
+                                        onToggled: Config.niriInfo["struts"]["enabled"] = checked
                                     }
                                 }
 
@@ -1415,10 +1495,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["struts"] ? niriData["struts"]["top"] : "0"
+                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["top"] : "0"
                                         suffix: "px"
                                         enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: niriData["struts"]["top"] = value
+                                        onValueChanged: Config.niriInfo["struts"]["top"] = value
                                     }
                                 }
 
@@ -1454,10 +1534,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["struts"] ? niriData["struts"]["bottom"] : "0"
+                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["bottom"] : "0"
                                         suffix: "px"
                                         enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: niriData["struts"]["bottom"] = value
+                                        onValueChanged: Config.niriInfo["struts"]["bottom"] = value
                                     }
                                 }
 
@@ -1493,10 +1573,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["struts"] ? niriData["struts"]["left"] : "0"
+                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["left"] : "0"
                                         suffix: "px"
                                         enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: niriData["struts"]["left"] = value
+                                        onValueChanged: Config.niriInfo["struts"]["left"] = value
                                     }
                                 }
 
@@ -1532,10 +1612,10 @@ FloatingWindow {
                                     }
 
                                     NumberField {
-                                        value: niriData && niriData["struts"] ? niriData["struts"]["right"] : "0"
+                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["right"] : "0"
                                         suffix: "px"
                                         enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: niriData["struts"]["right"] = value
+                                        onValueChanged: Config.niriInfo["struts"]["right"] = value
                                     }
                                 }
                             }
@@ -1553,8 +1633,8 @@ FloatingWindow {
     // Wallpaper Panel
     component WallpaperPanel: Rectangle {
         color: Config.background
-        topRightRadius: Config.sc(45)
-        bottomRightRadius: Config.sc(45)
+        topRightRadius: Config.sc(35)
+        bottomRightRadius: Config.sc(35)
 
         ColumnLayout {
             anchors.fill: parent
@@ -1816,8 +1896,8 @@ FloatingWindow {
     component BlueToothPanel: Rectangle {
         id: bluetoothPanel
         color: Config.background
-        topRightRadius: Config.sc(45)
-        bottomRightRadius: Config.sc(45)
+        topRightRadius: Config.sc(35)
+        bottomRightRadius: Config.sc(35)
 
         property bool bluetoothEnabled: true
 
@@ -2225,8 +2305,8 @@ FloatingWindow {
     component WifiPanel: Rectangle {
         id: wifiPanel
         color: Config.background
-        topRightRadius: Config.sc(45)
-        bottomRightRadius: Config.sc(45)
+        topRightRadius: Config.sc(35)
+        bottomRightRadius: Config.sc(35)
 
         property bool wifiEnabled: true
 
@@ -2700,6 +2780,530 @@ FloatingWindow {
                                     height: 1
                                     color: Config.progressColor
                                     opacity: 1
+                                }
+                            }
+                        }
+                    }
+
+                    Item {
+                        Layout.fillHeight: true
+                    }
+                }
+            }
+        }
+    }
+
+    // Mode Selector (Dropdown)
+    component ModeSelector: Item {
+        id: modeSelector
+        property var modes: []
+        property string currentMode: ""
+        property int selectedIndex: 0
+        property bool expanded: false
+        signal modeSelected(string mode)
+
+        width: Config.sc(160)
+        height: Config.sc(32)
+
+        // Selector button
+        Rectangle {
+            anchors.fill: parent
+            color: Config.background
+            border.color: Config.progressColor
+            border.width: 1
+            radius: Config.sc(6)
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Config.sc(10)
+                anchors.rightMargin: Config.sc(10)
+
+                Text {
+                    text: currentMode
+                    color: Config.text
+                    font.pixelSize: Config.scFont(13)
+                    font.family: Config.fontFamily
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    text: expanded ? "\uf077" : "\uf078"
+                    color: Config.text
+                    font.pixelSize: Config.scFont(12)
+                    font.family: Config.fontFamily
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (modeSelector.expanded) {
+                        dropdownPopup.close();
+                    } else {
+                        dropdownPopup.open();
+                    }
+                }
+            }
+        }
+
+        // Dropdown popup (using Popup to avoid clipping issues)
+        Popup {
+            id: dropdownPopup
+            x: 0
+            y: modeSelector.height + Config.sc(2)
+            width: modeSelector.width
+            height: Config.sc(32) * 4  // Max 4 items visible
+            padding: 0
+            background: Rectangle {
+                color: Config.background
+                border.color: Config.progressColor
+                border.width: 1
+                radius: Config.sc(6)
+            }
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+            onOpened: modeSelector.expanded = true
+            onClosed: modeSelector.expanded = false
+
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: Config.sc(2)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                contentWidth: width
+                contentHeight: modeListColumn.height
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+
+                Column {
+                    id: modeListColumn
+                    width: parent.width
+                    spacing: 0
+
+                    Repeater {
+                        model: modeSelector.modes
+
+                        Rectangle {
+                            width: dropdownPopup.width - Config.sc(4)
+                            height: Config.sc(32)
+                            color: modeItemMouseArea.containsMouse ? Config.textselect : "transparent"
+                            radius: Config.sc(4)
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 200
+                                    easing.type: Easing.InOutQuad
+                                }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Config.sc(10)
+                                anchors.rightMargin: Config.sc(10)
+
+                                Text {
+                                    text: modelData
+                                    color: Config.text
+                                    font.pixelSize: Config.scFont(13)
+                                    font.family: Config.fontFamily
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    text: modelData === modeSelector.currentMode ? "\uf00c" : ""
+                                    color: Config.textHover
+                                    font.pixelSize: Config.scFont(12)
+                                    font.family: Config.fontFamily
+                                    visible: modelData === modeSelector.currentMode
+                                }
+                            }
+
+                            MouseArea {
+                                id: modeItemMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    modeSelector.currentMode = modelData;
+                                    dropdownPopup.close();
+                                    modeSelector.modeSelected(modelData);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Display Panel
+    component DisplayPanel: Rectangle {
+        id: displayPanel
+        color: Config.background
+        topRightRadius: Config.sc(35)
+        bottomRightRadius: Config.sc(35)
+
+        property var setMonitor: []
+        property string setPriScreen: ""
+
+        // Use Config.priScreen directly for primary monitor check
+        function isPrimary(name) {
+            // 如果有选中的主屏幕，使用它；否则使用 Config.priScreen
+            let target = displayPanel.setPriScreen !== "" ? displayPanel.setPriScreen : Config.priScreen;
+            return name === target;
+        }
+
+        Component.onCompleted: {
+            monitorInfo();
+        }
+
+        function monitorInfo() {
+            let info = [];
+
+            for (let i = 0; i < configPanel.monitors.length; i++) {
+                info.push({
+                    name: configPanel.monitors[i].name,
+                    currentMode: configPanel.monitors[i].currentMode,
+                    scale: configPanel.monitors[i].scale
+                });
+            }
+
+            setMonitor = info;
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            // Header
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: Config.sc(20)
+                Layout.rightMargin: Config.sc(20)
+                Layout.topMargin: Config.sc(20)
+                spacing: Config.sc(20)
+
+                Text {
+                    text: "Display"
+                    color: Config.text
+                    font.pixelSize: Config.scFont(20)
+                    font.bold: true
+                    font.family: Config.fontFamily
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                Item {
+                    Layout.preferredWidth: Config.sc(60)
+                    Layout.preferredHeight: Config.sc(32)
+
+                    property bool pressed: false
+                    property bool hovered: false
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Config.textHover
+                        radius: height / 2
+                        scale: parent.pressed ? 0.9 : 1
+                        opacity: parent.hovered ? 1 : 0.8
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 100
+                                easing.type: Easing.InOutQuad
+                            }
+                        }
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 200
+                                easing.type: Easing.InOutQuad
+                            }
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Apply"
+                            color: Config.text
+                            font.pixelSize: Config.scFont(15)
+                            font.family: Config.fontFamily
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onPressed: parent.pressed = true
+                        onReleased: parent.pressed = false
+                        onEntered: parent.hovered = true
+                        onExited: parent.hovered = false
+                        onClicked: {
+                            if (displayPanel.setMonitor.length > 0) {
+                                Buttoncommand.setMonitorExec(displayPanel.setMonitor);
+                            }
+
+                            if (displayPanel.setPriScreen !== "") {
+                                let width = "";
+                                let height = "";
+
+                                // 从 monitors 数组中获取屏幕信息
+                                for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                    if (displayPanel.setMonitor[i].name === displayPanel.setPriScreen) {
+                                        let modeMatch = displayPanel.setMonitor[i].currentMode.match(/(\d+)x(\d+)/);
+                                        if (modeMatch) {
+                                            width = parseInt(modeMatch[1]);
+                                            height = parseInt(modeMatch[2]);
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 使用小写的 screenWidth/screenHeight
+                                Config.screenWidth = width;
+                                Config.screenHeight = height;
+                                Config.priScreen = displayPanel.setPriScreen;
+                                console.warn("Screen size:", Config.screenWidth, Config.screenHeight);
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.preferredWidth: Config.sc(32)
+                    Layout.preferredHeight: Config.sc(32)
+
+                    property bool isHovered: false
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Config.foreground
+                        radius: height / 2
+                        opacity: parent.isHovered ? 1 : 0
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 200
+                                easing.type: Easing.InOutQuad
+                            }
+                        }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\uf00d"
+                        color: Config.text
+                        font.pixelSize: Config.scFont(15)
+                        font.bold: true
+                        font.family: Config.fontFamily
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered: parent.isHovered = true
+                        onExited: parent.isHovered = false
+                        onClicked: Config.configPanelVisible = false
+                    }
+                }
+            }
+
+            // Scrollable content
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.rightMargin: Config.sc(7)
+                Layout.leftMargin: Config.sc(20)
+                Layout.topMargin: Config.sc(20)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                contentWidth: width
+                contentHeight: displayColumn.height
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+
+                ColumnLayout {
+                    id: displayColumn
+                    width: parent.width - Config.sc(17)
+                    anchors.left: parent.left
+                    spacing: Config.sc(20)
+
+                    Repeater {
+                        model: configPanel.monitors
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Config.sc(10)
+
+                            // Monitor name section header
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Config.sc(32)
+
+                                Text {
+                                    text: modelData.name
+                                    color: Config.text
+                                    font.pixelSize: Config.scFont(15)
+                                    font.family: Config.fontFamily
+                                    font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Text {
+                                    text: displayPanel.isPrimary(modelData.name) ? "Primary" : ""
+                                    color: Config.text
+                                    font.pixelSize: Config.scFont(12)
+                                    font.family: Config.fontFamily
+                                    visible: displayPanel.isPrimary(modelData.name)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.right: parent.right
+                                }
+                            }
+
+                            // Monitor settings card
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: monitorSettingsColumn.height
+                                color: Config.foreground
+                                radius: Config.sc(15)
+
+                                Column {
+                                    id: monitorSettingsColumn
+                                    width: parent.width
+
+                                    // Resolution/Mode
+                                    Item {
+                                        width: parent.width
+                                        height: Config.sc(60)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: Config.sc(20)
+                                            anchors.rightMargin: Config.sc(20)
+
+                                            Text {
+                                                text: "Mode"
+                                                color: Config.text
+                                                font.pixelSize: Config.scFont(15)
+                                                font.family: Config.fontFamily
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+
+                                            Item {
+                                                Layout.fillWidth: true
+                                            }
+
+                                            ModeSelector {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                modes: modelData.modes
+                                                currentMode: modelData.currentMode
+                                                onModeSelected: function (mode) {
+                                                    for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                                        if (displayPanel.setMonitor[i].name === modelData.name) {
+                                                            displayPanel.setMonitor[i].currentMode = mode;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            anchors.bottom: parent.bottom
+                                            width: parent.width
+                                            height: 1
+                                            color: Config.progressColor
+                                            opacity: 1
+                                        }
+                                    }
+
+                                    // Scale
+                                    Item {
+                                        width: parent.width
+                                        height: Config.sc(60)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: Config.sc(20)
+                                            anchors.rightMargin: Config.sc(20)
+
+                                            Text {
+                                                text: "Scale"
+                                                color: Config.text
+                                                font.pixelSize: Config.scFont(15)
+                                                font.family: Config.fontFamily
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+
+                                            Item {
+                                                Layout.fillWidth: true
+                                            }
+
+                                            NumberField {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                value: modelData.scale || "1"
+                                                suffix: "x"
+                                                onValueChanged: {
+                                                    for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                                        if (displayPanel.setMonitor[i].name === modelData.name) {
+                                                            displayPanel.setMonitor[i].scale = value;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            anchors.bottom: parent.bottom
+                                            width: parent.width
+                                            height: 1
+                                            color: Config.progressColor
+                                            opacity: 1
+                                        }
+                                    }
+
+                                    // Set Primary Monitor
+                                    Item {
+                                        width: parent.width
+                                        height: Config.sc(60)
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: Config.sc(20)
+                                            anchors.rightMargin: Config.sc(20)
+
+                                            Text {
+                                                text: "Set Primary Monitor"
+                                                color: Config.text
+                                                font.pixelSize: Config.scFont(15)
+                                                font.family: Config.fontFamily
+                                                Layout.alignment: Qt.AlignVCenter
+                                            }
+
+                                            Item {
+                                                Layout.fillWidth: true
+                                            }
+
+                                            ToggleSwitch {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                bindable: true
+                                                checked: displayPanel.isPrimary(modelData.name)
+                                                onToggled: {
+                                                    displayPanel.setPriScreen = modelData.name;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

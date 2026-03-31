@@ -79,6 +79,16 @@ ShellRoot {
         implicitWidth: Config.screenWidth
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.keyboardFocus: Config.toggleLeftPanel ? (Config.toggleAppLauncher ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None) : WlrKeyboardFocus.None
+
+        screen: {
+            for (let i = 0; i < Quickshell.screens.length; i++) {
+                if (Quickshell.screens[i].name === Config.priScreen) {
+                    return Quickshell.screens[i];
+                }
+            }
+            return Quickshell.screens[0];
+        }
 
         mask: Region {
             item: maskrect
@@ -87,21 +97,147 @@ ShellRoot {
 
         Rectangle {
             id: maskrect
+            // anchors.top: parent.top
+            // anchors.bottom: parent.bottom
+            // anchors.right: parent.right
             anchors.fill: rpcontainer
             visible: false
             anchors.bottomMargin: 0
-            anchors.leftMargin: 0
+            anchors.leftMargin: Config.sc(30)
             anchors.rightMargin: 0
             anchors.topMargin: Config.sc(Config.topbarwidth)
-            radius: Config.sc(25)
+        }
+
+        Rectangle {
+            id: leftPanel
+            width: Config.toggleLeftPanel ? (leftPanel.collapsed ? Config.sc(60) : leftPanel.panelwidth) : 0
+            color: Config.background
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+
+            // exclusionMode: ispin ? ExclusionMode.Auto : ExclusionMode.Ignore
+            // WlrLayershell.keyboardFocus: Config.toggleLeftPanel ? (Config.toggleAppLauncher ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None) : WlrKeyboardFocus.None
+
+            property int panelwidth: Math.round(Config.screenWidth / 6)
+            property bool panelOpen: false
+            property bool ispin: false
+            property bool appfocused: false
+            property bool collapsed: false
+
+            Behavior on width {
+                NumberAnimation {
+                    duration: 200
+                    easing.type: Easing.InOutQuad
+                }
+            }
+
+            MouseArea {
+                id: leftPanelTrigger
+                anchors.left: parent.left
+                width: parent.width + Config.sc(30)
+                height: parent.height
+                hoverEnabled: true
+
+                onEntered: {
+                    Config.toggleLeftPanel = true;
+                    Config.killLoader = true;
+                }
+                onExited: {
+                    if (!leftPanel.ispin) {
+                        Config.toggleLeftPanel = false;
+                        Config.delayLoader.running = true;
+                    }
+                }
+
+                Loader {
+                    id: leftPanelLoader
+                    anchors.fill: parent
+                    active: Config.killLoader
+                    sourceComponent: leftPanelContent
+                }
+
+                Component {
+                    id: leftPanelContent
+
+                    Item {
+                        id: leftPanelcontainer
+                        anchors.fill: parent
+                        anchors.topMargin: Config.sc(40)
+                        anchors.leftMargin: leftPanel.collapsed ? 0 : Config.sc(Config.gaps)
+                        anchors.rightMargin: leftPanel.collapsed ? Config.sc(30) : Config.sc(50)
+                        anchors.bottomMargin: Config.sc(Config.gaps)
+
+                        ColumnLayout {
+                            id: mainLayout
+                            anchors.fill: parent
+                            spacing: leftPanel.collapsed ? 0 : Config.sc(20)
+
+                            Item {
+                                id: workspacecontainer
+                                Layout.preferredWidth: parent.width
+                                Layout.preferredHeight: leftPanel.collapsed ? workspaces.width : Math.round(parent.height / 50)
+                                Layout.fillHeight: false
+                                UpWorkspaces {
+                                    id: upWorkspaces
+                                    visible: leftPanel.collapsed ? false : true
+                                }
+                                DownWorkspaces {
+                                    id: downWorkspaces
+                                    visible: leftPanel.collapsed ? false : true
+                                }
+                                Workspaces {
+                                    id: workspaces
+                                }
+                            }
+
+                            Rectangle {
+                                id: separator
+                                color: Config.text
+                                Layout.preferredHeight: 1
+                                Layout.preferredWidth: Config.sc(40)
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.topMargin: Config.sc(Config.gaps)
+                                visible: leftPanel.collapsed
+                                opacity: leftPanel.collapsed ? 0.6 : 0
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        easing.type: Easing.InOutQuad
+                                        duration: 200
+                                    }
+                                }
+                            }
+
+                            Applauncher {
+                                id: appLauncher
+                            }
+
+                            Menu {
+                                id: menu
+                            }
+
+                            AppSwitch {
+                                id: appSwitch
+                            }
+
+                            BottomContainer {
+                                id: bottomContainer
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Item {
             id: rpcontainer
             anchors.right: parent.right
             anchors.top: parent.top
-            height: parent.height
-            width: parent.width - leftPanel.width
+            anchors.bottom: parent.bottom
+            anchors.left: leftPanel.right
+            // height: parent.height
+            // width: parent.width - leftPanel.width
 
             Topbarbutton {
                 id: topbarbutton
@@ -116,7 +252,7 @@ ShellRoot {
             active: Config.logoutVisible
 
             Logout {
-                id: logoutMenu
+                id: logoutMenus
             }
         }
 
@@ -453,128 +589,6 @@ ShellRoot {
 
             ScreenLock {
                 id: screenLockManager
-            }
-        }
-    }
-
-    PanelWindow {
-        id: leftPanel
-        implicitWidth: Config.toggleLeftPanel ? (leftPanel.collapsed ? Config.sc(60) : leftPanel.panelwidth) : 0
-        color: Config.background
-        exclusionMode: ispin ? ExclusionMode.Auto : ExclusionMode.Ignore
-        WlrLayershell.keyboardFocus: Config.toggleLeftPanel ? (Config.toggleAppLauncher ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None) : WlrKeyboardFocus.None
-
-        anchors {
-            left: true
-            top: true
-            bottom: true
-        }
-
-        property int panelwidth: Math.round(Config.screenWidth / 6)
-        property bool panelOpen: false
-        property bool ispin: false
-        property bool appfocused: false
-        property bool collapsed: false
-
-        Behavior on implicitWidth {
-            NumberAnimation {
-                duration: 200
-                easing.type: Easing.InOutQuad
-            }
-        }
-
-        MouseArea {
-            id: leftPanelMouseArea
-            anchors.fill: parent
-            hoverEnabled: true
-
-            onEntered: {
-                Config.toggleLeftPanel = true;
-                Config.killLoader = true;
-            }
-            onExited: {
-                if (!leftPanel.ispin) {
-                    Config.toggleLeftPanel = false;
-                    Config.delayLoader.running = true;
-                }
-            }
-
-            Loader {
-                id: leftPanelLoader
-                anchors.fill: parent
-                active: Config.killLoader
-                sourceComponent: leftPanelContent
-            }
-
-            Component {
-                id: leftPanelContent
-
-                Item {
-                    id: leftPanelcontainer
-                    anchors.fill: parent
-                    anchors.topMargin: Config.sc(40)
-                    anchors.leftMargin: leftPanel.collapsed ? 0 : Config.sc(Config.gaps)
-                    anchors.rightMargin: leftPanel.collapsed ? 0 : Config.sc(Config.gaps)
-                    anchors.bottomMargin: Config.sc(Config.gaps)
-
-                    ColumnLayout {
-                        id: mainLayout
-                        anchors.fill: parent
-                        spacing: leftPanel.collapsed ? 0 : Config.sc(20)
-
-                        Item {
-                            id: workspacecontainer
-                            Layout.preferredWidth: parent.width
-                            Layout.preferredHeight: leftPanel.collapsed ? workspaces.width : Math.round(parent.height / 50)
-                            Layout.fillHeight: false
-                            UpWorkspaces {
-                                id: upWorkspaces
-                                visible: leftPanel.collapsed ? false : true
-                            }
-                            DownWorkspaces {
-                                id: downWorkspaces
-                                visible: leftPanel.collapsed ? false : true
-                            }
-                            Workspaces {
-                                id: workspaces
-                            }
-                        }
-
-                        Rectangle {
-                            id: separator
-                            color: Config.text
-                            Layout.preferredHeight: 1
-                            Layout.preferredWidth: Config.sc(40)
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: Config.sc(Config.gaps)
-                            visible: leftPanel.collapsed ? true : false
-                            opacity: leftPanel.collapsed ? 0.6 : 0
-
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    easing.type: Easing.InOutQuad
-                                    duration: 200
-                                }
-                            }
-                        }
-
-                        Applauncher {
-                            id: appLauncher
-                        }
-
-                        Menu {
-                            id: menu
-                        }
-
-                        AppSwitch {
-                            id: appSwitch
-                        }
-
-                        BottomContainer {
-                            id: bottomContainer
-                        }
-                    }
-                }
             }
         }
     }

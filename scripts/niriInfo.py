@@ -27,7 +27,7 @@ def get_niri_info():
             "width": 0,
             "height": 0,
             "refresh_rate": 0.0,
-            "focus": False,
+            "scale": 1.0,
         }
 
         mode_match = re.search(r'mode\s+"(\d+)x(\d+)@([\d.]+)"', block)
@@ -35,9 +35,6 @@ def get_niri_info():
             screen_info["width"] = int(mode_match.group(1))
             screen_info["height"] = int(mode_match.group(2))
             screen_info["refresh_rate"] = float(mode_match.group(3))
-
-        if "focus-at-startup" in block:
-            screen_info["focus"] = True
 
         screens.append(screen_info)
 

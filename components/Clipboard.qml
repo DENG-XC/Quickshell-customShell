@@ -209,7 +209,7 @@ FloatingWindow {
         id: clipboardContainer
         anchors.centerIn: parent
         color: Config.background
-        radius: Config.sc(45)
+        radius: Config.sc(35)
         width: Config.sc(800)
         height: Config.sc(530)
         focus: clipboardPopup.normalMode

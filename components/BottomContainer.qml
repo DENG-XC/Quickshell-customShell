@@ -30,6 +30,10 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
                 leftPanel.ispin = !leftPanel.ispin;
+                let targetWidth = leftPanel.ispin ? (leftPanel.collapsed ? Config.sc(60) : leftPanel.panelwidth) : 0;
+
+                // 使用专门的 struts 脚本（更快，只修改 struts 部分）
+                Buttoncommand.setStrutsExec(targetWidth);
             }
         }
     }
@@ -51,6 +55,10 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
                 leftPanel.collapsed = !leftPanel.collapsed;
+                let targetWidth = leftPanel.collapsed ? (leftPanel.ispin ? Config.sc(60) : 0) : leftPanel.ispin ? leftPanel.panelwidth : 0;
+
+                // 使用专门的 struts 脚本（更快，只修改 struts 部分）
+                Buttoncommand.setStrutsExec(targetWidth);
             }
         }
     }

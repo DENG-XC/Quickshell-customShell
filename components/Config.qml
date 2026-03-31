@@ -17,8 +17,8 @@ Singleton {
     readonly property int baseHeight: 1440
 
     // 当前屏幕尺寸（需要在使用时传入 Screen.width/height）
-    property int screenWidth
-    property int screenHeight
+    property int screenWidth: 2560  // 默认值，避免热重载后为 0
+    property int screenHeight: 1440  // 默认值，避免热重载后为 0
 
     // 缩放因子
     readonly property real scaleFactor: Math.min(screenWidth / baseWidth, screenHeight / baseHeight)
@@ -100,7 +100,7 @@ Singleton {
     }
 
     property Timer delayLoader: Timer {
-        interval: 300
+        interval: 150
         running: false
         repeat: false
         onTriggered: {
@@ -239,8 +239,28 @@ Singleton {
         }
     }
 
+    property alias priscreenproc: priscreenproc
+
+    // 获取逻辑分辨率（scale 后的尺寸）
     Process {
         id: priscreenproc
+        command: ["niri", "msg", "-j", "focused-output"]
+        running: true  // 启动时运行，热重载后也会重新运行
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let output = JSON.parse(this.text);
+                if (output && output.name) {
+                    config.priScreen = output.name;
+                    config.screenWidth = output.modes[output.current_mode].width;
+                    config.screenHeight = output.modes[output.current_mode].height;
+                }
+            }
+        }
+    }
+
+    // 获取 niri 配置信息（用于 AppearancePanel）
+    Process {
+        id: niriInfoProc
         command: ["bash", "-c", "python3 ~/.config/quickshell/scripts/niriInfo.py"]
         running: true
         stdout: StdioCollector {
@@ -248,23 +268,19 @@ Singleton {
                 let text = JSON.parse(this.text);
                 config.niriInfo = text;
 
-                function getPriScreen() {
-                    for (let i = 0; i < text.screens.length; i++) {
-                        if (text.screens[i].focus === true) {
-                            config.priScreen = text.screens[i].name;
-                            config.screenWidth = text.screens[i].width;
-                            config.screenHeight = text.screens[i].height;
-                            return;
-                        }
-                    }
+                // 更新主屏幕名称
+                // for (let i = 0; i < text.screens.length; i++) {
+                //     if (text.screens[i].focus === true) {
+                //         config.priScreen = text.screens[i].name;
+                //         break;
+                //     }
+                // }
+                // if (!config.priScreen && text.screens.length > 0) {
+                //     config.priScreen = text.screens[0].name;
+                // }
 
-                    config.priScreen = text.screens[0].name;
-                    config.screenWidth = text.screens[0].width;
-                    config.screenHeight = text.screens[0].height;
-                    return;
-                }
-
-                getPriScreen();
+                // 触发 priscreenproc 获取逻辑分辨率
+                // priscreenproc.running = true;
             }
         }
     }

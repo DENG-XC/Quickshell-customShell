@@ -22,6 +22,7 @@ function updateFilter(inPut) {
   const iconMapped = {
     "btop++": "/usr/share/icons/hicolor/256x256/apps/btop.png",
   };
+  const defaultIcon = ""; // 默认空图标，避免 undefined
   let filterApps = [];
 
   if (lowerInput === "") {
@@ -32,7 +33,10 @@ function updateFilter(inPut) {
 
   Config.filteredAppsModel = filterApps.map((app) => ({
     name: app.name,
-    icon: Quickshell.iconPath(app.icon, true) || iconMapped[app.name],
+    icon:
+      Quickshell.iconPath(app.icon, true) ||
+      iconMapped[app.name] ||
+      defaultIcon,
     exec: app,
   }));
 
