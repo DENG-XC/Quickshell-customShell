@@ -51,7 +51,7 @@ python3 install.py
 > [!NOTE]
 > **Fedora users**: If you want to compile `awww`, you need to install these additional packages:
 > ```bash
-> sudo dnf install lz4-devel wayland-protocols-devel
+> sudo dnf install lz4-devel wayland-protocols-devel wayland-devel
 > ```
 
 ### 2. Clone the repository
@@ -166,7 +166,7 @@ python3 install.py
 > [!NOTE]
 > **Fedora 用户**：如果需要编译 `awww`，需要先安装以下依赖包：
 > ```bash
-> sudo dnf install lz4-devel wayland-protocols-devel
+> sudo dnf install lz4-devel wayland-protocols-devel wayland-devel
 > ```
 
 ### 2. 克隆仓库
