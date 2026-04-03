@@ -40,7 +40,7 @@ Singleton {
     readonly property var setStruts: Process {}
 
     function setStrutsExec(left) {
-        setStruts.exec(["python3", Config.shellDir + "/scripts/setStruts.py", left]);
+        setStruts.exec(["python3", Config.shellDir + "/scripts/setStruts.py", "left", left]);
     }
 
     function bluetoothDisconnect(address) {

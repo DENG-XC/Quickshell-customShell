@@ -166,7 +166,7 @@ Singleton {
     Process {
         id: windowsproc
         command: ["niri", "msg", "windows"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 ParseWindows.parseWindowsOutput(this.text, runningWindowsModel);
@@ -177,7 +177,7 @@ Singleton {
     Process {
         id: countwsproc
         command: ["niri", "msg", "workspaces"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 let text = this.text.trim();
@@ -241,11 +241,10 @@ Singleton {
 
     property alias priscreenproc: priscreenproc
 
-    // 获取逻辑分辨率（scale 后的尺寸）
     Process {
         id: priscreenproc
         command: ["niri", "msg", "-j", "focused-output"]
-        running: true  // 启动时运行，热重载后也会重新运行
+        running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 let output = JSON.parse(this.text);
@@ -254,6 +253,21 @@ Singleton {
                     config.screenWidth = output.modes[output.current_mode].width;
                     config.screenHeight = output.modes[output.current_mode].height;
                 }
+            }
+        }
+    }
+
+    Process {
+        id: setTopStruts
+        command: ["python3", Config.shellDir + "/scripts/setStruts.py", "top", config.sc(40)]
+        running: false
+    }
+
+    Connections {
+        target: config
+        function onShellDirChanged() {
+            if (config.shellDir !== "") {
+                setTopStruts.running = true;
             }
         }
     }

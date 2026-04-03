@@ -55,20 +55,24 @@ ShellRoot {
             if (a === "f" && d === "t") {
                 if (!Config.toggleLeftPanel) {
                     return;
-                } else if (!leftPanel.ispin) {
-                    leftPanel.ispin = true;
-                } else {
-                    leftPanel.ispin = false;
                 }
+
+                leftPanel.ispin = !leftPanel.ispin;
+                let targetWidth = leftPanel.ispin ? (leftPanel.collapsed ? Config.sc(60) : leftPanel.panelwidth) : 0;
+
+                Buttoncommand.setStrutsExec(targetWidth);
+
             }
             if (a === "t" && d === "t") {
                 if (!Config.toggleLeftPanel) {
                     return;
-                } else if (leftPanel.collapsed) {
-                    leftPanel.collapsed = false;
-                } else {
-                    leftPanel.collapsed = true;
                 }
+
+                leftPanel.collapsed = !leftPanel.collapsed;
+                let targetWidth = leftPanel.collapsed ? (leftPanel.ispin ? Config.sc(60) : 0) : leftPanel.ispin ? leftPanel.panelwidth : 0;
+
+                Buttoncommand.setStrutsExec(targetWidth);
+
             }
         }
     }
@@ -581,6 +585,7 @@ ShellRoot {
 
         Volumepop {
             id: volumeService
+            anchorWindow: panelwindow
         }
 
         LazyLoader {
