@@ -11,6 +11,14 @@ import "../js/LaunchSelectedApp.js" as LaunchSelectedApp
 FloatingWindow {
     id: clipboardPopup
     title: "clipboard"
+    screen: {
+        for (let i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i].name === Config.priScreen) {
+                return Quickshell.screens[i];
+            }
+        }
+        return Quickshell.screens[0];
+    }
     maximumSize: Qt.size(Config.sc(800), Config.sc(530))
     color: "transparent"
 

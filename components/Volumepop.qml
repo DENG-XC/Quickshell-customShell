@@ -6,7 +6,8 @@ import Quickshell.Services.Pipewire
 import Quickshell.Widgets
 
 Scope {
-    id: root
+    id: scope
+    property var anchorWindow: 
 
     PwObjectTracker {
         objects: [Pipewire.defaultAudioSink]
@@ -16,7 +17,7 @@ Scope {
         target: Pipewire.defaultAudioSink ? Pipewire.defaultAudioSink.audio : null
 
         function onVolumeChanged() {
-            root.shouldShowOsd = true;
+            scope.shouldShowOsd = true;
             hideTimer.restart();
         }
     }
@@ -27,18 +28,27 @@ Scope {
     Timer {
         id: hideTimer
         interval: 2000
-        onTriggered: root.shouldShowOsd = false
+        onTriggered: scope.shouldShowOsd = false
     }
 
     LazyLoader {
-        active: root.shouldShowOsd
+        active: scope.shouldShowOsd
 
-        PanelWindow {
+        PopupWindow {
+           //  screen: {
+           //      for (let i = 0; i < Quickshell.screens.length; i++) {
+           //          if (Quickshell.screens[i].name === Config.priScreen) {
+           //              return Quickshell.screens[i];
+           //          }
+           //      }
+           //      return Quickshell.screens[0];
+           //  }
 
-            anchors.bottom: true
-            margins.bottom: Math.round(Config.screenHeight / 6)
-            exclusionMode: ExclusionMode.Ignore
-
+            anchor.window: scope.anchorWindow
+            anchor.rect.x: scope.anchorWindow.width / 2 - width / 2
+            anchor.rect.y: scope.anchorWindow.height - Math.round(Config.screenHeight / 6)
+            // exclusionMode: ExclusionMode.Ignore
+            visible: true
             implicitWidth: Math.round(Config.screenWidth / 10)
             implicitHeight: Config.sc(50)
             color: "transparent"
@@ -52,7 +62,7 @@ Scope {
 
                 Text {
                     id: volumeText
-                    text: root.volume
+                    text: scope.volume
                     anchors.centerIn: parent
                     font.pixelSize: Config.scFont(18)
                     font.bold: true
@@ -84,9 +94,9 @@ Scope {
                         font.bold: true
                         font.family: "JetBrains Mono Nerd Font 10"
                         text: {
-                            if (root.volume === 0)
+                            if (scope.volume === 0)
                                 return "";
-                            if (root.volume < 50)
+                            if (scope.volume < 50)
                                 return "";
                             return "";
                         }

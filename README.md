@@ -9,7 +9,6 @@ A custom desktop shell component set built with [Quickshell](https://quickshell.
 
 [观看演示视频/更高质量](https://www.bilibili.com/video/BV1z1ADzvESh) | [Watch Demo/better quality](https://www.bilibili.com/video/BV1z1ADzvESh)
 
-https://github.com/user-attachments/assets/412221cb-9ca1-45a6-a360-76ce9102dcbf
 
 
 
@@ -52,7 +51,7 @@ python3 install.py
 > [!NOTE]
 > **Fedora users**: If you want to compile `awww`, you need to install these additional packages:
 > ```bash
-> sudo dnf install lz4-devel wayland-protocols-devel
+> sudo dnf install lz4-devel wayland-protocols-devel wayland-devel
 > ```
 
 ### 2. Clone the repository
@@ -167,7 +166,7 @@ python3 install.py
 > [!NOTE]
 > **Fedora 用户**：如果需要编译 `awww`，需要先安装以下依赖包：
 > ```bash
-> sudo dnf install lz4-devel wayland-protocols-devel
+> sudo dnf install lz4-devel wayland-protocols-devel wayland-devel
 > ```
 
 ### 2. 克隆仓库

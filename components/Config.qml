@@ -62,9 +62,9 @@ Singleton {
     property bool toggleLeftPanel: false
     property bool toggleAppLauncher: false
     property bool toggleCollapseApp: false
-    property bool configPanelVisible: false
-    property bool wifiPasswordPopupVisible: false
-    property var selectedWifi: null
+    // property bool configPanelVisible: false
+    // property bool wifiPasswordPopupVisible: false
+    // property var selectedWifi: null
     property bool killLoader: false
     property string fontFamily: "JetBrains Mono Nerd Font 10"
     property string userName: ""
@@ -72,7 +72,7 @@ Singleton {
     property string priScreen: ""
     property string workspacesOutput: ""
     property var filteredAppsModel: []
-    property var niriInfo: null
+    // property var niriInfo: null
 
     onCurrentworkspaceChanged: hoveredWorkspace = -1
 
@@ -166,7 +166,7 @@ Singleton {
     Process {
         id: windowsproc
         command: ["niri", "msg", "windows"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 ParseWindows.parseWindowsOutput(this.text, runningWindowsModel);
@@ -177,7 +177,7 @@ Singleton {
     Process {
         id: countwsproc
         command: ["niri", "msg", "workspaces"]
-        running: true
+        running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 let text = this.text.trim();
@@ -241,11 +241,10 @@ Singleton {
 
     property alias priscreenproc: priscreenproc
 
-    // 获取逻辑分辨率（scale 后的尺寸）
     Process {
         id: priscreenproc
         command: ["niri", "msg", "-j", "focused-output"]
-        running: true  // 启动时运行，热重载后也会重新运行
+        running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 let output = JSON.parse(this.text);
@@ -258,30 +257,52 @@ Singleton {
         }
     }
 
-    // 获取 niri 配置信息（用于 AppearancePanel）
     Process {
-        id: niriInfoProc
-        command: ["bash", "-c", "python3 ~/.config/quickshell/scripts/niriInfo.py"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let text = JSON.parse(this.text);
-                config.niriInfo = text;
+        id: setTopStruts
+        command: ["python3", Config.shellDir + "/scripts/setStruts.py", "top", config.sc(40)]
+        running: false
+    }
 
-                // 更新主屏幕名称
-                // for (let i = 0; i < text.screens.length; i++) {
-                //     if (text.screens[i].focus === true) {
-                //         config.priScreen = text.screens[i].name;
-                //         break;
-                //     }
-                // }
-                // if (!config.priScreen && text.screens.length > 0) {
-                //     config.priScreen = text.screens[0].name;
-                // }
+    Process {
+        id: setWindowRule
+        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", config.sc(800), config.sc(530)]
+        running: false
+    }
 
-                // 触发 priscreenproc 获取逻辑分辨率
-                // priscreenproc.running = true;
+    Connections {
+        target: config
+        function onShellDirChanged() {
+            if (config.shellDir !== "") {
+                setTopStruts.running = true;
+                setWindowRule.running = true;
             }
         }
     }
+
+    // 获取 niri 配置信息（用于 AppearancePanel）
+    // Process {
+    //     id: niriInfoProc
+    //     command: ["bash", "-c", "python3 ~/.config/quickshell/scripts/niriInfo.py"]
+    //     running: true
+    //     stdout: StdioCollector {
+    //         onStreamFinished: {
+    //             let text = JSON.parse(this.text);
+    //             config.niriInfo = text;
+
+    //             更新主屏幕名称
+    //             for (let i = 0; i < text.screens.length; i++) {
+    //                 if (text.screens[i].focus === true) {
+    //                     config.priScreen = text.screens[i].name;
+    //                     break;
+    //                 }
+    //             }
+    //             if (!config.priScreen && text.screens.length > 0) {
+    //                 config.priScreen = text.screens[0].name;
+    //             }
+
+    //             触发 priscreenproc 获取逻辑分辨率
+    //             priscreenproc.running = true;
+    //         }
+    //     }
+    // }
 }
