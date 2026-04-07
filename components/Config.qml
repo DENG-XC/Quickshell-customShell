@@ -62,9 +62,9 @@ Singleton {
     property bool toggleLeftPanel: false
     property bool toggleAppLauncher: false
     property bool toggleCollapseApp: false
-    // property bool configPanelVisible: false
-    // property bool wifiPasswordPopupVisible: false
-    // property var selectedWifi: null
+    property bool configPanelVisible: false
+    property bool wifiPasswordPopupVisible: false
+    property var selectedWifi: null
     property bool killLoader: false
     property string fontFamily: "JetBrains Mono Nerd Font 10"
     property string userName: ""
@@ -72,7 +72,7 @@ Singleton {
     property string priScreen: ""
     property string workspacesOutput: ""
     property var filteredAppsModel: []
-    // property var niriInfo: null
+    property var niriInfo: null
 
     onCurrentworkspaceChanged: hoveredWorkspace = -1
 
@@ -280,29 +280,29 @@ Singleton {
     }
 
     // 获取 niri 配置信息（用于 AppearancePanel）
-    // Process {
-    //     id: niriInfoProc
-    //     command: ["bash", "-c", "python3 ~/.config/quickshell/scripts/niriInfo.py"]
-    //     running: true
-    //     stdout: StdioCollector {
-    //         onStreamFinished: {
-    //             let text = JSON.parse(this.text);
-    //             config.niriInfo = text;
+    Process {
+        id: niriInfoProc
+        command: ["bash", "-c", "python3 ~/.config/quickshell/scripts/niriInfo.py"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let text = JSON.parse(this.text);
+                config.niriInfo = text;
 
-    //             更新主屏幕名称
-    //             for (let i = 0; i < text.screens.length; i++) {
-    //                 if (text.screens[i].focus === true) {
-    //                     config.priScreen = text.screens[i].name;
-    //                     break;
-    //                 }
-    //             }
-    //             if (!config.priScreen && text.screens.length > 0) {
-    //                 config.priScreen = text.screens[0].name;
-    //             }
+                更新主屏幕名称
+                for (let i = 0; i < text.screens.length; i++) {
+                    if (text.screens[i].focus === true) {
+                        config.priScreen = text.screens[i].name;
+                        break;
+                    }
+                }
+                if (!config.priScreen && text.screens.length > 0) {
+                    config.priScreen = text.screens[0].name;
+                }
 
-    //             触发 priscreenproc 获取逻辑分辨率
-    //             priscreenproc.running = true;
-    //         }
-    //     }
-    // }
+                // 触发 priscreenproc 获取逻辑分辨率
+                priscreenproc.running = true;
+            }
+        }
+    }
 }
