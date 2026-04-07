@@ -21,6 +21,16 @@ FloatingWindow {
     property var monitors: []
     property int selectedWallpaperIndex: 0
 
+    screen: {
+        for (let i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i].name === Config.priScreen) {
+                return Quickshell.screens[i];
+            }
+        }
+        return Quickshell.screens[0];
+    }
+
+    
     onVisibleChanged: {
         if (!visible) {
             Config.configPanelVisible = false;

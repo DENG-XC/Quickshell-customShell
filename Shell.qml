@@ -14,8 +14,8 @@ ShellRoot {
     IpcHandler {
         target: "Config"
 
-        function setAppLauncher(a: string, d: string): void {
-            if (a === "n" && d === "n") {
+        function setAppLauncher(a: string): void {
+            if (a === "toggleAppLauncher") {
                 if (Config.toggleCollapseApp) {
                     Config.toggleCollapseApp = false;
                     Config.killLoader = true;
@@ -41,7 +41,7 @@ ShellRoot {
                     Config.killLoader = true;
                 }
             }
-            if (a === "t" && d === "f") {
+            if (a === "toggleLeftPanel") {
                 if (leftPanel.ispin) {
                     return;
                 } else if (Config.toggleLeftPanel) {
@@ -52,7 +52,7 @@ ShellRoot {
                     Config.killLoader = true;
                 }
             }
-            if (a === "f" && d === "t") {
+            if (a === "togglePin") {
                 if (!Config.toggleLeftPanel) {
                     return;
                 }
@@ -63,7 +63,7 @@ ShellRoot {
                 Buttoncommand.setStrutsExec(targetWidth);
 
             }
-            if (a === "t" && d === "t") {
+            if (a === "toggleCollapse") {
                 if (!Config.toggleLeftPanel) {
                     return;
                 }

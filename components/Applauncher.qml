@@ -253,6 +253,23 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             visible: leftPanel.collapsed ? false : true
 
+            Connections {
+                target: Config
+                onToggleAppLauncherChanged: {
+                    if (Config.toggleAppLauncher) {
+                        focusTimer.start()
+                    }
+                }
+            }
+
+            Timer {
+                id: focusTimer
+                interval: 50
+                onTriggered: {
+                    searchInput.forceActiveFocus()
+                }
+            }
+
             Timer {
                 id: panelTimer
                 interval: 350
