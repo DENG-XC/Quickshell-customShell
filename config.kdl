@@ -271,10 +271,10 @@ layout {
 spawn-at-startup "fcitx5" "-d" "--replace"
 spawn-at-startup "awww-daemon"
 spawn-at-startup "awww-daemon" "-n" "overview"
-spawn-at-startup "/home/deng/.local/bin/clipse" "-listen"
-spawn-at-startup "qs" "-p" "/home/deng/.config/quickshell/Shell.qml"
-spawn-at-startup "bash" "-c" "sleep 2 && awww img -n overview /home/deng/Pictures/backgroundblur.jpg"
-spawn-at-startup "bash" "-c" "sleep 1 && awww img /home/deng/Pictures/conifers-1836582.jpg"
+spawn-at-startup "bash" "-c" "clipse -listen"
+spawn-at-startup "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml"
+spawn-at-startup "bash" "-c" "sleep 2 && awww img -n overview ~/.config/quickshell/wallpaper/backgroundblur.jpg"
+spawn-at-startup "bash" "-c" "sleep 1 && awww img ~/.config/quickshell/wallpaper/conifers-1836582.jpg"
 
 // Uncomment this line to ask the clients to omit their client-side decorations if possible.
 // If the client will specifically ask for CSD, the request will be honored.
@@ -471,10 +471,10 @@ binds {
     Mod+T { spawn "kitty" "--class" "kitty_float"; }
     // Mod+W { spawn "rofi" "-show" "drun"; }
     // Super+Alt+L { spawn "swaylock"; }
-    Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleAppLauncher"; }
-    Mod+A { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleLeftPanel"; }
-    Mod+D { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher togglePin"; }
-    Mod+Shift+A { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleCollapse"; }
+    Mod+W { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleAppLauncher"; } // keybind for toggleAppLauncher
+    Mod+A { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleLeftPanel"; } // keybind for toggleLeftPanel
+    Mod+D { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher togglePin"; } // keybind for togglePin
+    Mod+Shift+A { spawn "bash" "-c" "qs -p ~/.config/quickshell/Shell.qml ipc call Config setAppLauncher toggleCollapse"; } // keybind for toggleCollapse
     Mod+V { spawn "kitty" "--class" "yazi_float" "-e" "yazi"; }
     // You can also use a shell. Do this if you need pipes, multiple commands, etc.
     // Note: the entire command goes as a single argument in the end.
