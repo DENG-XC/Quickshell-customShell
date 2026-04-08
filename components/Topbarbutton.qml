@@ -232,56 +232,6 @@ Rectangle {
             }
         }
 
-        // Item {
-        //     Layout.preferredWidth: Config.sc(50)
-        //     Layout.preferredHeight: Config.sc(30)
-        //     Layout.alignment: Qt.AlignVCenter
-
-        //     property bool hover: false
-
-        //     Text {
-        //         id: settingsButton
-        //         text: ""
-        //         anchors.centerIn: parent
-        //         color: Config.text
-        //         font.pixelSize: Config.scFont(20)
-        //         font.bold: true
-        //         font.family: Config.fontFamily
-        //         z: 1
-        //     }
-
-        //     Rectangle {
-        //         anchors.fill: parent
-        //         color: Config.textHover
-        //         radius: height / 2
-        //         opacity: parent.hover ? 0.3 : 0
-
-        //         Behavior on opacity {
-        //             NumberAnimation {
-        //                 easing.type: Easing.InOutQuad
-        //                 duration: 200
-        //             }
-        //         }
-        //     }
-
-        //     MouseArea {
-        //         id: settingsTrigger
-        //         anchors.fill: parent
-        //         hoverEnabled: true
-        //         enabled: true
-        //         cursorShape: Qt.PointingHandCursor
-        //         onClicked: {
-        //             Config.configPanelVisible = !Config.configPanelVisible;
-        //         }
-        //         onEntered: {
-        //             parent.hover = true;
-        //         }
-        //         onExited: {
-        //             parent.hover = false;
-        //         }
-        //     }
-        // }
-
         Item {
             Layout.preferredWidth: Config.sc(50)
             Layout.preferredHeight: Config.sc(30)

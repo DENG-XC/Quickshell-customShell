@@ -88,11 +88,16 @@ def install_dependencies(missing_list, pm):
         for package in missing_list:
             if package == "niri":
                 try:
-                    print("enable yalter/niri copr")
-                    subprocess.run(
-                        ["sudo", pm, "copr", "enable", "-y", "yalter/niri"],
-                        check=True,
-                    )
+                    result = subprocess.run([f"{pm} copr list | grep niri"], shell=True, capture_output=True)
+                    if result.returncode != 0:
+                        print("enable yalter/niri copr")
+                        subprocess.run(
+                            ["sudo", pm, "copr", "enable", "-y", "yalter/niri"],
+                            check=True,
+                        )
+
+                    else:
+                        print("niri copr already enabled")
 
                     print(f"installing {package}")
                     subprocess.run(["sudo", pm, "install", "-y", "niri"], check=True)
@@ -112,18 +117,22 @@ def install_dependencies(missing_list, pm):
 
             elif package == "quickshell":
                 try:
-                    print("enable errornointernet/quickshell copr")
-                    subprocess.run(
-                        [
-                            "sudo",
-                            pm,
-                            "copr",
-                            "enable",
-                            "-y",
-                            "errornointernet/quickshell",
-                        ],
-                        check=True,
-                    )
+                    result = subprocess.run([f"{pm} copr list | grep quickshell"], shell=True, capture_output=True)
+                    if result.returncode != 0:
+                        print("enable errornointernet/quickshell copr")
+                        subprocess.run(
+                            [
+                                "sudo",
+                                pm,
+                                "copr",
+                                "enable",
+                                "-y",
+                                "errornointernet/quickshell",
+                            ],
+                            check=True,
+                        )
+                    else:
+                        print("quickshell copr already enabled")
 
                     print(f"installing {package}")
                     subprocess.run(
@@ -175,18 +184,22 @@ def install_dependencies(missing_list, pm):
 
             elif package == "hyprpicker":
                 try:
-                    print("enable solopasha/hyprland copr")
-                    subprocess.run(
-                        [
-                            "sudo",
-                            pm,
-                            "copr",
-                            "enable",
-                            "-y",
-                            "solopasha/hyprland",
-                        ],
-                        check=True,
-                    )
+                    result = subprocess.run([f"{pm} copr list | grep hyprland"], shell=True, capture_output=True)
+                    if result.returncode != 0:
+                        print("enable solopasha/hyprland copr")
+                        subprocess.run(
+                            [
+                                "sudo",
+                                pm,
+                                "copr",
+                                "enable",
+                                "-y",
+                                "solopasha/hyprland",
+                            ],
+                            check=True,
+                        )
+                    else:
+                        print("hyprpicker copr already enabled")
 
                     print(f"installing {package}")
                     subprocess.run(
@@ -249,28 +262,31 @@ def install_dependencies(missing_list, pm):
         return False
 
 
-def run_shell():
+def copy_shell():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     target_dir = os.path.join(home, ".config", "quickshell")
+    niri_dir = os.path.join(home, ".config", "niri")
+    niri_config_source = os.path.join(script_dir, "config.kdl")
+    niri_config_target = os.path.join(niri_dir, "config.kdl")
 
     if os.path.abspath(script_dir) == os.path.abspath(target_dir):
         print("Shell files are already in ~/.config/quickshell, skipping copy.")
-        return
 
-    answer = input(
-        f"Copy shell files from {script_dir} to ~/.config/quickshell? (y/n): "
-    )
-    if answer.lower() == "y":
-        ignore_patterns = shutil.ignore_patterns(
-            "install.py", ".git", "__pycache__", "*.pyc"
-        )
+    else:
+        ignore_patterns = shutil.ignore_patterns("install.py", ".git", "__pycache__", "*.pyc")
         shutil.copytree(
             script_dir, target_dir, dirs_exist_ok=True, ignore=ignore_patterns
         )
         print("Shell files copied successfully.")
-    else:
-        print("Skipping.")
 
+    if os.path.exists(niri_config_source):
+        if os.path.exists(niri_config_target):
+            shutil.copy2(niri_config_source, niri_config_target)
+            print("Niri config copied successfully.")
+        else:
+            os.makedirs(niri_dir, exist_ok=True)
+            shutil.copy2(niri_config_source, niri_config_target)
+            print("Niri config copied successfully.")
 
 def check_weak_dependencies(pm):
     weak_dependencies = [
@@ -344,10 +360,10 @@ def main():
             install_success = install_dependencies(missing, distro_package_manager)
 
     if not missing:
-        run_shell()
+        copy_shell()
 
     elif install_success:
-        run_shell()
+        copy_shell()
 
 
 if __name__ == "__main__":

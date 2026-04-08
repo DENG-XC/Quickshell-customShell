@@ -37,8 +37,43 @@ def add_window_rule(width, height):
 
     title_match = re.search(r"\s*match\s+title=\"clipboard\"", content)
     if title_match:
-        print("Title match found, skipping insertion.")
-        return
+        position = title_match.start()
+        start = title_match.start()
+        brace_count = 1
+        end = None
+
+        while position < len(content):
+            char = content[position]
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end = position
+                    break
+            position += 1
+
+        if end:
+            clipboard_content = content[start:end + 1]
+
+            width_match = re.search(r"\s*default-column-width\s+\{\s+fixed\s+(\d+)\;\s+\}", clipboard_content)
+            height_match = re.search(r"\s*default-window-height\s+\{\s+fixed\s+(\d+)\;\s+\}", clipboard_content)
+
+            if width_match:
+                clipboard_width = width_match.group(1)
+                if width != clipboard_width:
+                    clipboard_content = re.sub(r"default-column-width\s+\{\s+fixed\s+\d+\;\s+\}", f"default-column-width {{ fixed {width}; }}", clipboard_content)
+
+            if height_match:
+                clipboard_height = height_match.group(1)
+                if height != clipboard_height:
+                    clipboard_content = re.sub(r"default-window-height\s+\{\s+fixed\s+\d+\;\s+\}", f"default-window-height {{ fixed {height}; }}", clipboard_content)
+
+            new_content = content[:start] + clipboard_content + content[end + 1:]
+
+            with open(niri_file, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            return
 
     last_block = get_window_block(content)
 
