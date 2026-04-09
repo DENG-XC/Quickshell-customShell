@@ -260,8 +260,14 @@ Singleton {
     }
 
     Process {
-        id: setWindowRule
-        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", config.sc(800), config.sc(530)]
+        id: setClipboardWindowRule
+        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", "clipboard", config.sc(800), config.sc(530)]
+        running: false
+    }
+
+    Process {
+        id: setSettingsWindowRule
+        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", "settings", config.sc(900), config.sc(650)]
         running: false
     }
 
@@ -270,7 +276,8 @@ Singleton {
         function onShellDirChanged() {
             if (config.shellDir !== "") {
                 setTopStruts.running = true;
-                setWindowRule.running = true;
+                setClipboardWindowRule.running = true;
+                setSettingsWindowRule.running = true;
             }
         }
     }

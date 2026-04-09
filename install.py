@@ -265,9 +265,6 @@ def install_dependencies(missing_list, pm):
 def copy_shell():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     target_dir = os.path.join(home, ".config", "quickshell")
-    niri_dir = os.path.join(home, ".config", "niri")
-    niri_config_source = os.path.join(script_dir, "config.kdl")
-    niri_config_target = os.path.join(niri_dir, "config.kdl")
 
     if os.path.abspath(script_dir) == os.path.abspath(target_dir):
         print("Shell files are already in ~/.config/quickshell, skipping copy.")
@@ -278,15 +275,6 @@ def copy_shell():
             script_dir, target_dir, dirs_exist_ok=True, ignore=ignore_patterns
         )
         print("Shell files copied successfully.")
-
-    if os.path.exists(niri_config_source):
-        if os.path.exists(niri_config_target):
-            shutil.copy2(niri_config_source, niri_config_target)
-            print("Niri config copied successfully.")
-        else:
-            os.makedirs(niri_dir, exist_ok=True)
-            shutil.copy2(niri_config_source, niri_config_target)
-            print("Niri config copied successfully.")
 
 def check_weak_dependencies(pm):
     weak_dependencies = [

@@ -31,7 +31,7 @@ def get_window_block(content):
                 return position
         position += 1
 
-def add_window_rule(width, height):
+def add_clipboard_window_rule(width, height):
     with open(niri_file, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -97,11 +97,83 @@ def add_window_rule(width, height):
     with open(niri_file, "w", encoding="utf-8") as f:
         f.write(new_content)
 
+def add_settings_window_rule(width, height):
+    with open(niri_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    title_match = re.search(r"\s*match\s+title=\"settings\"", content)
+    if title_match:
+        position = title_match.start()
+        start = title_match.start()
+        brace_count = 1
+        end = None
+
+        while position < len(content):
+            char = content[position]
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    end = position
+                    break
+            position += 1
+
+        if end:
+            settings_content = content[start:end + 1]
+
+            width_match = re.search(r"\s*default-column-width\s+\{\s+fixed\s+(\d+)\;\s+\}", settings_content)
+            height_match = re.search(r"\s*default-window-height\s+\{\s+fixed\s+(\d+)\;\s+\}", settings_content)
+
+            if width_match:
+                settings_width = width_match.group(1)
+                if width != settings_width:
+                    settings_content = re.sub(r"default-column-width\s+\{\s+fixed\s+\d+\;\s+\}", f"default-column-width {{ fixed {width}; }}", settings_content)
+
+            if height_match:
+                settings_height = height_match.group(1)
+                if height != settings_height:
+                    settings_content = re.sub(r"default-window-height\s+\{\s+fixed\s+\d+\;\s+\}", f"default-window-height {{ fixed {height}; }}", settings_content)
+
+            new_content = content[:start] + settings_content + content[end + 1:]
+
+            with open(niri_file, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            return
+
+    last_block = get_window_block(content)
+
+    if last_block:
+        window_rule = textwrap.dedent(f"""\n
+        // add by shell script
+        window-rule {{
+            match title="settings"
+            open-floating true
+            open-focused true
+            default-column-width {{ fixed {width}; }}
+            default-window-height {{ fixed {height}; }}
+        }}""")
+
+        new_content = content[:last_block + 1] + window_rule + content[last_block + 1:]
+        print("Window rule added successfully.")
+    else:
+        print("No window-rule block found, cannot add rule.")
+        return
+
+    with open(niri_file, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
 
-    if len(args) == 2:
-        width = args[0]
-        height = args[1]
+    if len(args) == 3:
+        if args[0] == "settings":
+            width = args[1]
+            height = args[2]
+            add_settings_window_rule(width, height)
 
-        add_window_rule(width, height)
+        if args[0] == "clipboard":
+            width = args[1]
+            height = args[2]
+            add_window_rule(width, height)
