@@ -70,6 +70,17 @@ Singleton {
     property string workspacesOutput: ""
     property var filteredAppsModel: []
 
+    property var windowRule: {
+        "clipboard": {
+            "width": config.sc(800),
+            "height": config.sc(530)
+        },
+        "settings": {
+            "width": config.sc(900),
+            "height": config.sc(650)
+        }
+    }
+
     onCurrentworkspaceChanged: hoveredWorkspace = -1
 
     property Timer windowsprocTimer: Timer {
@@ -260,14 +271,8 @@ Singleton {
     }
 
     Process {
-        id: setClipboardWindowRule
-        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", "clipboard", config.sc(800), config.sc(530)]
-        running: false
-    }
-
-    Process {
-        id: setSettingsWindowRule
-        command: ["python3", Config.shellDir + "/scripts/addWindowRule.py", "settings", config.sc(900), config.sc(650)]
+        id: setWindowRule
+        command: []
         running: false
     }
 
@@ -276,8 +281,9 @@ Singleton {
         function onShellDirChanged() {
             if (config.shellDir !== "") {
                 setTopStruts.running = true;
-                setClipboardWindowRule.running = true;
-                setSettingsWindowRule.running = true;
+                let windowRuleJson = JSON.stringify(config.windowRule);
+                setWindowRule.command = ["python3", Config.shellDir + "/scripts/addWindowRule.py", windowRuleJson];
+                setWindowRule.running = true;
             }
         }
     }

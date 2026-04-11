@@ -6,8 +6,6 @@ import Quickshell.Services.SystemTray
 
 Rectangle {
     id: topbarcontainer
-    anchors.top: parent.top
-    anchors.horizontalCenter: parent.horizontalCenter
     width: parent.width
     height: Config.sc(Config.topbarwidth)
     color: Config.background
@@ -41,16 +39,59 @@ Rectangle {
         }
     }
 
+    Item {
+        id: clockContainer
+        anchors.centerIn: parent
+        height: Config.sc(30)
+        width: clock.width + Config.sc(40)
+        z: 2
+
+        Text {
+            id: clock
+            anchors.centerIn: parent
+            text: Clock.time
+            font.pixelSize: Config.scFont(18)
+            color: Config.text
+            font.bold: true
+            font.family: Config.fontFamily
+            z: 1
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: Config.textHover
+            radius: height / 2
+            opacity: hovered ? 0.3 : 0
+
+            property bool hovered: false
+
+            Behavior on opacity {
+                NumberAnimation {
+                    easing.type: Easing.InOutQuad
+                    duration: 200
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: parent.hovered = true
+                onExited: parent.hovered = false
+                onClicked: {
+                    Config.calendarVisible = !Config.calendarVisible;
+                }
+            }
+        }
+    }
+
     RowLayout {
         id: topbarlayout
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
+        anchors.fill: parent
         anchors.leftMargin: Config.sc(20)
-        spacing: Config.sc(30)
+        anchors.rightMargin: Config.sc(20)
 
         Row {
-            Layout.alignment: Qt.AlignVCenter
             spacing: Config.sc(10)
 
             Repeater {
@@ -111,62 +152,12 @@ Rectangle {
                 }
             }
         }
-    }
 
-    Item {
-        id: clockContainer
-        anchors.centerIn: parent
-        height: Config.sc(30)
-        width: clock.width + Config.sc(40)
-
-        Text {
-            id: clock
-            anchors.centerIn: parent
-            text: Clock.time
-            font.pixelSize: Config.scFont(18)
-            color: Config.text
-            font.bold: true
-            font.family: Config.fontFamily
-            z: 1
+        Item {
+            Layout.fillWidth: true
         }
-
-        Rectangle {
-            anchors.fill: parent
-            color: Config.textHover
-            radius: height / 2
-            opacity: hovered ? 0.3 : 0
-
-            property bool hovered: false
-
-            Behavior on opacity {
-                NumberAnimation {
-                    easing.type: Easing.InOutQuad
-                    duration: 200
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onEntered: parent.hovered = true
-                onExited: parent.hovered = false
-                onClicked: {
-                    Config.calendarVisible = !Config.calendarVisible;
-                }
-            }
-        }
-    }
-
-    RowLayout {
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        spacing: Config.sc(10)
-        anchors.rightMargin: Config.sc(20)
 
         Row {
-            Layout.alignment: Qt.AlignVCenter
             spacing: Config.sc(10)
 
             Repeater {
@@ -235,7 +226,6 @@ Rectangle {
         Item {
             Layout.preferredWidth: Config.sc(50)
             Layout.preferredHeight: Config.sc(30)
-            Layout.alignment: Qt.AlignVCenter
 
             property bool hover: false
 

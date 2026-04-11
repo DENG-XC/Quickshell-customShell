@@ -81,7 +81,39 @@ def set_top_struts(top):
                 new_block,
             )
 
-    # 替换原内容
+    left_match = re.search(r"\s*left\s+(\d+)", new_block)
+    if left_match:
+        value = left_match.group(1)
+
+        new_block = re.sub(
+            r"^(\s*)left\s+\d+",
+            r"\1left 0",
+            new_block,
+            flags=re.MULTILINE,
+        )
+
+    right_match = re.search(r"\s*right\s+(\d+)", new_block)
+    if right_match:
+        value = right_match.group(1)
+
+        new_block = re.sub(
+            r"^(\s*)right\s+\d+",
+            r"\1right 0",
+            new_block,
+            flags=re.MULTILINE,
+        )
+
+    bottom_match = re.search(r"\s*bottom\s+(\d+)", new_block)
+    if bottom_match:
+        value = bottom_match.group(1)
+
+        new_block = re.sub(
+            r"^(\s*)bottom\s+\d+",
+            r"\1bottom 0",
+            new_block,
+            flags=re.MULTILINE,
+        )
+
     new_content = content.replace(struts_block, new_block)
 
     with open(niri_file, "w", encoding="utf-8") as f:

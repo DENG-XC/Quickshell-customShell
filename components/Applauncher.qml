@@ -255,7 +255,7 @@ Rectangle {
 
             Connections {
                 target: Config
-                onToggleAppLauncherChanged: {
+                function onToggleAppLauncherChanged() {
                     if (Config.toggleAppLauncher) {
                         focusTimer.start()
                     }

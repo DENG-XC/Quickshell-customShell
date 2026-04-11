@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 niriInfo.py
 niriSetting.py
+ConfigPanel.qml
