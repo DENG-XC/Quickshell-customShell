@@ -12,6 +12,7 @@ apps = [
     "awww",
     "hyprpicker",
     "qt6-qt5compat",
+    "jetbrainsmono-nerd-fonts.noarch"
 ]
 
 
@@ -63,7 +64,13 @@ def check_dependencies(pm, app):
         if result.returncode == 0:
             return True
         check = subprocess.run([pm, "list", "--installed", app], capture_output=True)
-        return check.returncode == 0
+        if check.returncode == 0:
+            return True
+        if app == "jetbrainsmono-nerd-fonts.noarch":
+            result = subprocess.run("fc-list | grep -i JetBrainsMonoNerdFont", shell=True, capture_output=True)
+            if result.returncode == 0:
+                return True
+        return False
     except subprocess.CalledProcessError as e:
         print(f"{e}")
         return False
@@ -88,7 +95,7 @@ def install_dependencies(missing_list, pm):
         for package in missing_list:
             if package == "niri":
                 try:
-                    result = subprocess.run([f"{pm} copr list | grep niri"], shell=True, capture_output=True)
+                    result = subprocess.run(f"{pm} repolist | grep -i niri", shell=True, capture_output=True, text=True)
                     if result.returncode != 0:
                         print("enable yalter/niri copr")
                         subprocess.run(
@@ -105,6 +112,25 @@ def install_dependencies(missing_list, pm):
                 except subprocess.CalledProcessError as e:
                     print(f"Failed to install {package}: {e}")
 
+            elif package == "jetbrainsmono-nerd-fonts.noarch":
+                try:
+                    result = subprocess.run(f"{pm} repolist | grep -i terra", shell=True, capture_output=True, text=True)
+                    if result.returncode != 0:
+                        print("enable terra repo")
+                        subprocess.run(
+                            f"sudo {pm} install --nogpgcheck --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' terra-release",
+                            check=True,
+                            shell=True
+                        )
+                    else:
+                        print("terra repo already enabled")
+
+                    print(f"installing {package}")
+                    subprocess.run(["sudo", pm, "install", "-y", "jetbrainsmono-nerd-fonts.noarch"], check=True)
+
+                except subprocess.CalledProcessError as e:
+                    print(f"Failed to install {package}: {e}")
+
             elif package == "qt6-qt5compat":
                 try:
                     print(f"installing {package}")
@@ -117,7 +143,7 @@ def install_dependencies(missing_list, pm):
 
             elif package == "quickshell":
                 try:
-                    result = subprocess.run([f"{pm} copr list | grep quickshell"], shell=True, capture_output=True)
+                    result = subprocess.run(f"{pm} copr list | grep -i quickshell", shell=True, capture_output=True)
                     if result.returncode != 0:
                         print("enable errornointernet/quickshell copr")
                         subprocess.run(
@@ -184,7 +210,7 @@ def install_dependencies(missing_list, pm):
 
             elif package == "hyprpicker":
                 try:
-                    result = subprocess.run([f"{pm} copr list | grep hyprland"], shell=True, capture_output=True)
+                    result = subprocess.run(f"{pm} copr list | grep -i hyprland", shell=True, capture_output=True)
                     if result.returncode != 0:
                         print("enable solopasha/hyprland copr")
                         subprocess.run(

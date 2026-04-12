@@ -289,7 +289,7 @@ Singleton {
                 let text = JSON.parse(this.text);
                 config.niriInfo = text;
 
-                更新主屏幕名称
+                // 更新主屏幕名称
                 for (let i = 0; i < text.screens.length; i++) {
                     if (text.screens[i].focus === true) {
                         config.priScreen = text.screens[i].name;

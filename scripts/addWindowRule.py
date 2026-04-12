@@ -9,12 +9,16 @@ niri_file = os.path.join(home, ".config", "niri", "config.kdl")
 
 
 def get_window_block(content):
+    """找到最后一个 window-rule 块的结束位置"""
 
     block_count = []
 
     window_rule_match = re.finditer(r"\s*window-rule\s*\{", content)
     for match in window_rule_match:
         block_count.append(match.start())
+
+    if not block_count:
+        return None  # 没找到任何 window-rule
 
     last_block = block_count[-1]
 
@@ -31,10 +35,20 @@ def get_window_block(content):
                 return position
         position += 1
 
-def add_clipboard_window_rule(width, height):
+    return None  # 没找到结束位置
+
+def add_window_rule(data):
+    # 解析 JSON 数据
+    try:
+        data = json.loads(data)
+    except json.JSONDecodeError:
+        print("Invalid JSON data")
+        return
+
     with open(niri_file, "r", encoding="utf-8") as f:
         content = f.read()
 
+    # 处理 clipboard window-rule
     title_match = re.search(r"\s*match\s+title=\"clipboard\"", content)
     if title_match:
         position = title_match.start()
@@ -61,46 +75,43 @@ def add_clipboard_window_rule(width, height):
 
             if width_match:
                 clipboard_width = width_match.group(1)
+                width = data["clipboard"]["width"]
                 if width != clipboard_width:
                     clipboard_content = re.sub(r"default-column-width\s+\{\s+fixed\s+\d+\;\s+\}", f"default-column-width {{ fixed {width}; }}", clipboard_content)
 
             if height_match:
                 clipboard_height = height_match.group(1)
+                height = data["clipboard"]["height"]
                 if height != clipboard_height:
                     clipboard_content = re.sub(r"default-window-height\s+\{\s+fixed\s+\d+\;\s+\}", f"default-window-height {{ fixed {height}; }}", clipboard_content)
 
-            new_content = content[:start] + clipboard_content + content[end + 1:]
+            content = content[:start] + clipboard_content + content[end + 1:]
+            print("Clipboard window rule updated.")
 
-            with open(niri_file, "w", encoding="utf-8") as f:
-                f.write(new_content)
+    if not title_match:
+        last_block = get_window_block(content)
+
+        if last_block:
+            width = data["clipboard"]["width"]
+            height = data["clipboard"]["height"]
+
+            window_rule = textwrap.dedent(f"""\n
+            // add by shell script
+            window-rule {{
+                match title="clipboard"
+                open-floating true
+                open-focused true
+                default-column-width {{ fixed {width}; }}
+                default-window-height {{ fixed {height}; }}
+            }}""")
+
+            content = content[:last_block + 1] + window_rule + content[last_block + 1:]
+            print("Clipboard window rule added.")
+        else:
+            print("No window-rule block found, cannot add clipboard rule.")
             return
 
-    last_block = get_window_block(content)
-
-    if last_block:
-        window_rule = textwrap.dedent(f"""\n
-        // add by shell script
-        window-rule {{
-            match title="clipboard"
-            open-floating true
-            open-focused true
-            default-column-width {{ fixed {width}; }}
-            default-window-height {{ fixed {height}; }}
-        }}""")
-
-        new_content = content[:last_block + 1] + window_rule + content[last_block + 1:]
-        print("Window rule added successfully.")
-    else:
-        print("No window-rule block found, cannot add rule.")
-        return
-
-    with open(niri_file, "w", encoding="utf-8") as f:
-        f.write(new_content)
-
-def add_settings_window_rule(width, height):
-    with open(niri_file, "r", encoding="utf-8") as f:
-        content = f.read()
-
+    # 处理 settings window-rule（使用更新后的 content）
     title_match = re.search(r"\s*match\s+title=\"settings\"", content)
     if title_match:
         position = title_match.start()
@@ -127,53 +138,49 @@ def add_settings_window_rule(width, height):
 
             if width_match:
                 settings_width = width_match.group(1)
+                width = data["settings"]["width"]
                 if width != settings_width:
                     settings_content = re.sub(r"default-column-width\s+\{\s+fixed\s+\d+\;\s+\}", f"default-column-width {{ fixed {width}; }}", settings_content)
 
             if height_match:
                 settings_height = height_match.group(1)
+                height = data["settings"]["height"]
                 if height != settings_height:
                     settings_content = re.sub(r"default-window-height\s+\{\s+fixed\s+\d+\;\s+\}", f"default-window-height {{ fixed {height}; }}", settings_content)
 
-            new_content = content[:start] + settings_content + content[end + 1:]
+            content = content[:start] + settings_content + content[end + 1:]
+            print("Settings window rule updated.")
 
-            with open(niri_file, "w", encoding="utf-8") as f:
-                f.write(new_content)
+    if not title_match:
+        last_block = get_window_block(content)
+
+        if last_block:
+            width = data["settings"]["width"]
+            height = data["settings"]["height"]
+
+            window_rule = textwrap.dedent(f"""\n
+            // add by shell script
+            window-rule {{
+                match title="settings"
+                open-floating true
+                open-focused true
+                default-column-width {{ fixed {width}; }}
+                default-window-height {{ fixed {height}; }}
+            }}""")
+
+            content = content[:last_block + 1] + window_rule + content[last_block + 1:]
+            print("Settings window rule added.")
+        else:
+            print("No window-rule block found, cannot add settings rule.")
             return
 
-    last_block = get_window_block(content)
-
-    if last_block:
-        window_rule = textwrap.dedent(f"""\n
-        // add by shell script
-        window-rule {{
-            match title="settings"
-            open-floating true
-            open-focused true
-            default-column-width {{ fixed {width}; }}
-            default-window-height {{ fixed {height}; }}
-        }}""")
-
-        new_content = content[:last_block + 1] + window_rule + content[last_block + 1:]
-        print("Window rule added successfully.")
-    else:
-        print("No window-rule block found, cannot add rule.")
-        return
-
+    # 最后写入文件
     with open(niri_file, "w", encoding="utf-8") as f:
-        f.write(new_content)
-
+        f.write(content)
 
 if __name__ == "__main__":
     args = sys.argv[1:]
 
-    if len(args) == 3:
-        if args[0] == "settings":
-            width = args[1]
-            height = args[2]
-            add_settings_window_rule(width, height)
-
-        if args[0] == "clipboard":
-            width = args[1]
-            height = args[2]
-            add_window_rule(width, height)
+    if len(args) == 1:
+        data = args[0]
+        add_window_rule(data)
