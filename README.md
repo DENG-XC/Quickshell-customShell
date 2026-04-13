@@ -42,7 +42,7 @@ A custom desktop shell component set built with [Quickshell](https://quickshell.
 ```bash
 # install script only work on Fedora
 
-python3 install.py
+sh install.sh
 
 # Or install dependencies manually
 # Or use your preferred distro
@@ -157,7 +157,7 @@ property color foreground: "#181b21"
 # Fedora
 # 下载脚本只在Fedora上工作
 
-python3 install.py
+sh install.sh
 
 # 或者自行下载依赖
 # 或使用你喜欢的发行版
