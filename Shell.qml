@@ -107,7 +107,7 @@ ShellRoot {
             anchors.fill: rpcontainer
             visible: false
             anchors.bottomMargin: 0
-            anchors.leftMargin: Config.sc(30)
+            anchors.leftMargin: Config.sc(10)
             anchors.rightMargin: 0
             anchors.topMargin: Config.sc(Config.topbarwidth)
         }
@@ -139,7 +139,7 @@ ShellRoot {
             MouseArea {
                 id: leftPanelTrigger
                 anchors.left: parent.left
-                width: parent.width + Config.sc(30)
+                width: parent.width + Config.sc(10)
                 height: parent.height
                 hoverEnabled: true
 
@@ -169,7 +169,7 @@ ShellRoot {
                         anchors.fill: parent
                         anchors.topMargin: Config.sc(40)
                         anchors.leftMargin: leftPanel.collapsed ? 0 : Config.sc(Config.gaps)
-                        anchors.rightMargin: leftPanel.collapsed ? Config.sc(30) : Config.sc(50)
+                        anchors.rightMargin: leftPanel.collapsed ? Config.sc(10) : Config.sc(30)
                         anchors.bottomMargin: Config.sc(Config.gaps)
 
                         ColumnLayout {
