@@ -23,26 +23,24 @@ FloatingWindow {
 
     screen: {
         for (let i = 0; i < Quickshell.screens.length; i++) {
-            if (Quickshell.screens[i].name === Config.priScreen) {
+            if (Quickshell.screens[i].name === Config.priScreen)
                 return Quickshell.screens[i];
-            }
         }
         return Quickshell.screens[0];
     }
 
-    
     onVisibleChanged: {
-        if (!visible) {
-            Config.configPanelVisible = false;
-        }
+        if (!visible) Config.configPanelVisible = false;
         if (visible) {
-            bluetoothList.running = true;
-            wifiList.running = true;
+            bluetoothListProc.running = true;
+            wifiListProc.running = true;
         }
     }
 
+    // ── Process objects ──────────────────────────────────────────────
+
     Process {
-        id: wifiList
+        id: wifiListProc
         command: ["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list"]
         running: false
         stdout: StdioCollector {
@@ -50,37 +48,16 @@ FloatingWindow {
                 let text = this.text;
                 let scanList = [];
                 let connected = [];
-
-                let lines = text.split("\n");
-                for (let line of lines) {
-                    if (!line.trim())
-                        continue;
-
+                for (let line of text.split("\n")) {
+                    if (!line.trim()) continue;
                     let parts = line.split(":");
-                    if (parts.length >= 3) {
-                        let inUse = parts[0] === "*";
-                        let name = parts[1] || "Unknown";
-                        let signal = parts[2] || "0";
-                        let security = parts[3] || "";
-
-                        // 跳过空 SSID
-                        if (!name || name === "")
-                            continue;
-
-                        let wifiItem = {
-                            name: name,
-                            signal: signal,
-                            security: security
-                        };
-
-                        if (inUse) {
-                            connected.push(wifiItem);
-                        } else {
-                            scanList.push(wifiItem);
-                        }
-                    }
+                    if (parts.length < 3) continue;
+                    let name = parts[1] || "Unknown";
+                    if (!name) continue;
+                    let item = { name: name, signal: parts[2] || "0", security: parts[3] || "" };
+                    if (parts[0] === "*") connected.push(item);
+                    else scanList.push(item);
                 }
-
                 configPanel.wifiConnected = connected;
                 configPanel.wifiList = scanList;
             }
@@ -94,23 +71,13 @@ FloatingWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    let text = this.text;
-                    let connectedDevices = [];
-                    let lines = text.split("\n");
-
-                    for (let line of lines) {
+                    let devices = [];
+                    for (let line of this.text.split("\n")) {
                         let parts = line.split(" ");
-                        if (parts.length >= 3) {
-                            let address = parts[1];
-                            let name = parts.slice(2).join(" ");
-                            connectedDevices.push({
-                                address: address,
-                                name: name
-                            });
-                        }
+                        if (parts.length >= 3)
+                            devices.push({ address: parts[1], name: parts.slice(2).join(" ") });
                     }
-
-                    configPanel.connectedModel = connectedDevices;
+                    configPanel.connectedModel = devices;
                 } catch (e) {
                     console.warn("Failed to parse connected data:", this.text);
                 }
@@ -124,47 +91,32 @@ FloatingWindow {
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
-                try {
-                    let datas = JSON.parse(this.text);
-                    configPanel.wallPaperModel = datas;
-                } catch (e) {
-                    console.warn("Failed to parse wallpaper data:", this.text);
-                }
+                try { configPanel.wallPaperModel = JSON.parse(this.text); }
+                catch (e) { console.warn("Failed to parse wallpaper data:", this.text); }
             }
         }
     }
 
     Process {
-        id: bluetoothList
+        id: bluetoothListProc
         command: ["bluetoothctl", "--timeout", "10", "scan", "on"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    let text = this.text;
-                    // 移除 ANSI 颜色码
-                    text = text.replace(/\x1b\[[0-9;]*m/g, "");
-                    let lines = text.split("\n");
+                    let text = this.text.replace(/\x1b\[[0-9;]*m/g, "");
                     let devices = [];
-
-                    for (let line of lines) {
+                    for (let line of text.split("\n")) {
                         line = line.trim();
-                        if (line.startsWith("[NEW] Device")) {
-                            let parts = line.split(" ");
-                            if (parts.length >= 4) {
-                                let address = parts[2];
-                                let name = parts.slice(3).join(" ");
-                                if (name.replace(/-/g, ":") === address) {
-                                    name = "Unknown";
-                                }
-                                devices.push({
-                                    address: address,
-                                    name: name
-                                });
-                            }
+                        if (!line.startsWith("[NEW] Device")) continue;
+                        let parts = line.split(" ");
+                        if (parts.length >= 4) {
+                            let addr = parts[2];
+                            let name = parts.slice(3).join(" ");
+                            if (name.replace(/-/g, ":") === addr) name = "Unknown";
+                            devices.push({ address: addr, name: name });
                         }
                     }
-
                     configPanel.bluetoothModel = devices;
                 } catch (e) {
                     console.warn("Failed to parse bluetooth data:", e);
@@ -180,54 +132,34 @@ FloatingWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    let outputs = this.text;
-                    let lines = outputs.split("\n");
+                    let lines = this.text.split("\n");
                     let monitors = [];
-                    let monitorInfo = null;
+                    let info = null;
                     let inBlock = false;
-
                     for (let line of lines) {
-                        let trim = line.trim();
-                        if (trim.startsWith("Output")) {
-                            if (monitorInfo && monitorInfo.name) {
-                                monitors.push(monitorInfo);
-                            }
-
-                            monitorInfo = {
-                                name: "",
-                                modes: [],
-                                currentMode: "",
-                                scale: "1"
-                            };
-                            let monitorMatch = trim.match(/Output\s+"[^"]*"\s+\(([^)]+)\)/);
-                            if (monitorMatch) {
-                                monitorInfo.name = monitorMatch[1];
-                            }
+                        let t = line.trim();
+                        if (t.startsWith("Output")) {
+                            if (info && info.name) monitors.push(info);
+                            info = { name: "", modes: [], currentMode: "", scale: "1" };
+                            let m = t.match(/Output\s+"[^"]*"\s+\(([^)]+)\)/);
+                            if (m) info.name = m[1];
                             inBlock = false;
-                        } else if (trim.startsWith("Scale:")) {
-                            // 解析 Scale: 1
-                            let scaleMatch = trim.match(/Scale:\s*([\d.]+)/);
-                            if (scaleMatch && monitorInfo) {
-                                monitorInfo.scale = scaleMatch[1];
-                            }
-                        } else if (trim.startsWith("Available modes:")) {
+                        } else if (t.startsWith("Scale:") && info) {
+                            let m = t.match(/Scale:\s*([\d.]+)/);
+                            if (m) info.scale = m[1];
+                        } else if (t.startsWith("Available modes:")) {
                             inBlock = true;
                         } else if (inBlock) {
-                            let modeMatch = trim.match(/(\d+x\d+@\d+\.\d+)/);
-                            if (modeMatch && trim.includes("current")) {
-                                monitorInfo.currentMode = modeMatch[1];
-                            } else if (modeMatch) {
-                                monitorInfo.modes.push(modeMatch[1]);
+                            let m = t.match(/(\d+x\d+@\d+\.\d+)/);
+                            if (m) {
+                                if (t.includes("current")) info.currentMode = m[1];
+                                else info.modes.push(m[1]);
                             }
-                        } else if (trim === "") {
+                        } else if (t === "") {
                             inBlock = false;
                         }
                     }
-
-                    if (monitorInfo && monitorInfo.name) {
-                        monitors.push(monitorInfo);
-                    }
-
+                    if (info && info.name) monitors.push(info);
                     configPanel.monitors = monitors;
                 } catch (e) {
                     console.warn("Failed to parse niri output:", e);
@@ -236,61 +168,23 @@ FloatingWindow {
         }
     }
 
-    Timer {
-        interval: 11000
-        running: configPanel.currentPanel === 2
-        repeat: true
-        onTriggered: {
-            bluetoothList.running = true;
-        }
-    }
+    // ── Timers ────────────────────────────────────────────────────────
 
-    Timer {
-        interval: 5000
-        running: configPanel.currentPanel === 3
-        repeat: true
-        onTriggered: {
-            wifiList.running = true;
-        }
-    }
-
-    Timer {
-        id: refreshConnectedTimer
-        interval: 500
-        repeat: false
-        onTriggered: {
-            bluetoothConnectedProcess.running = true;
-        }
-    }
-
-    Timer {
-        id: refreshBluetoothTimer
-        interval: 5000
-        repeat: false
-        onTriggered: {
-            bluetoothConnectedProcess.running = true;
-            bluetoothList.running = true;
-        }
-    }
-
-    Timer {
-        id: refreshWifiTimer
-        interval: 3000
-        repeat: false
-        onTriggered: {
-            wifiList.running = true;
-        }
-    }
+    Timer { interval: 11000; running: configPanel.currentPanel === 2; repeat: true; onTriggered: bluetoothListProc.running = true; }
+    Timer { interval: 5000;  running: configPanel.currentPanel === 3; repeat: true; onTriggered: wifiListProc.running = true; }
+    Timer { id: refreshConnectedTimer;    interval: 500;  repeat: false; onTriggered: bluetoothConnectedProcess.running = true; }
+    Timer { id: refreshBluetoothTimer;    interval: 5000; repeat: false; onTriggered: { bluetoothConnectedProcess.running = true; bluetoothListProc.running = true; } }
+    Timer { id: refreshWifiTimer;         interval: 3000; repeat: false; onTriggered: wifiListProc.running = true; }
 
     Component.onCompleted: {
         wallPapersList.running = true;
         bluetoothConnectedProcess.running = true;
-        wifiList.running = true;
+        wifiListProc.running = true;
     }
 
+    // ── Main Layout ──────────────────────────────────────────────────
+
     Item {
-        id: configContainer
-        //anchors.fill: parent
         anchors.centerIn: parent
         width: Config.sc(900)
         height: Config.sc(650)
@@ -299,7 +193,7 @@ FloatingWindow {
             anchors.fill: parent
             spacing: 0
 
-            // Left Sidebar
+            // Sidebar
             Rectangle {
                 Layout.preferredWidth: Config.sc(220)
                 Layout.fillHeight: true
@@ -322,44 +216,13 @@ FloatingWindow {
                         Layout.leftMargin: Config.sc(20)
                     }
 
-                    SidebarItem {
-                        icon: ""
-                        label: "Appearance"
-                        isActive: configPanel.currentPanel === 0
-                        onClicked: configPanel.currentPanel = 0
-                    }
+                    SidebarItem { icon: ""; label: "Appearance"; isActive: configPanel.currentPanel === 0; onClicked: configPanel.currentPanel = 0; }
+                    SidebarItem { icon: ""; label: "Wallpaper";  isActive: configPanel.currentPanel === 1; onClicked: configPanel.currentPanel = 1; }
+                    SidebarItem { icon: ""; label: "Bluetooth";  isActive: configPanel.currentPanel === 2; onClicked: configPanel.currentPanel = 2; }
+                    SidebarItem { icon: ""; label: "WiFi";       isActive: configPanel.currentPanel === 3; onClicked: configPanel.currentPanel = 3; }
+                    SidebarItem { icon: "\uf108"; label: "Display"; isActive: configPanel.currentPanel === 4; onClicked: configPanel.currentPanel = 4; }
 
-                    SidebarItem {
-                        icon: ""
-                        label: "Wallpaper"
-                        isActive: configPanel.currentPanel === 1
-                        onClicked: configPanel.currentPanel = 1
-                    }
-
-                    SidebarItem {
-                        icon: ""
-                        label: "Bluetooth"
-                        isActive: configPanel.currentPanel === 2
-                        onClicked: configPanel.currentPanel = 2
-                    }
-
-                    SidebarItem {
-                        icon: ""
-                        label: "WiFi"
-                        isActive: configPanel.currentPanel === 3
-                        onClicked: configPanel.currentPanel = 3
-                    }
-
-                    SidebarItem {
-                        icon: "\uf108"
-                        label: "Display"
-                        isActive: configPanel.currentPanel === 4
-                        onClicked: configPanel.currentPanel = 4
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
-                    }
+                    Item { Layout.fillHeight: true; }
                 }
             }
 
@@ -371,49 +234,28 @@ FloatingWindow {
                 Loader {
                     anchors.fill: parent
                     sourceComponent: {
-                        if (configPanel.currentPanel === 0)
-                            return appearancePanelComponent;
-                        else if (configPanel.currentPanel === 1)
-                            return wallpaperPanelComponent;
-                        else if (configPanel.currentPanel === 2)
-                            return blueToothPanelComponent;
-                        else if (configPanel.currentPanel === 3)
-                            return wifiPanelComponent;
-                        else if (configPanel.currentPanel === 4)
-                            return displayPanelComponent;
+                        if (configPanel.currentPanel === 0) return appearancePanelComp;
+                        if (configPanel.currentPanel === 1) return wallpaperPanelComp;
+                        if (configPanel.currentPanel === 2) return bluetoothPanelComp;
+                        if (configPanel.currentPanel === 3) return wifiPanelComp;
+                        if (configPanel.currentPanel === 4) return displayPanelComp;
                         return null;
                     }
 
-                    Component {
-                        id: appearancePanelComponent
-                        AppearancePanel {}
-                    }
-
-                    Component {
-                        id: wallpaperPanelComponent
-                        WallpaperPanel {}
-                    }
-
-                    Component {
-                        id: blueToothPanelComponent
-                        BlueToothPanel {}
-                    }
-
-                    Component {
-                        id: wifiPanelComponent
-                        WifiPanel {}
-                    }
-
-                    Component {
-                        id: displayPanelComponent
-                        DisplayPanel {}
-                    }
+                    Component { id: appearancePanelComp; AppearancePanel {} }
+                    Component { id: wallpaperPanelComp;  WallpaperPanel {} }
+                    Component { id: bluetoothPanelComp;  BlueToothPanel {} }
+                    Component { id: wifiPanelComp;       WifiPanel {} }
+                    Component { id: displayPanelComp;    DisplayPanel {} }
                 }
             }
         }
     }
 
-    // Sidebar Item
+    // ═══════════════════════════════════════════════════════════════════
+    // SHARED COMPONENTS
+    // ═══════════════════════════════════════════════════════════════════
+
     component SidebarItem: Rectangle {
         property string icon: ""
         property string label: ""
@@ -433,23 +275,8 @@ FloatingWindow {
             anchors.rightMargin: Config.sc(20)
             spacing: Config.sc(20)
 
-            Text {
-                text: icon
-                color: Config.text
-                font.pixelSize: Config.scFont(18)
-                font.bold: true
-                font.family: Config.fontFamily
-            }
-
-            Text {
-                text: label
-                color: Config.text
-                font.pixelSize: Config.scFont(15)
-                font.bold: true
-                font.family: Config.fontFamily
-                Layout.fillWidth: true
-                Layout.topMargin: Config.sc(3)
-            }
+            Text { text: icon; color: Config.text; font.pixelSize: Config.scFont(18); font.bold: true; font.family: Config.fontFamily; }
+            Text { text: label; color: Config.text; font.pixelSize: Config.scFont(15); font.bold: true; font.family: Config.fontFamily; Layout.fillWidth: true; Layout.topMargin: Config.sc(3); }
         }
 
         MouseArea {
@@ -462,11 +289,10 @@ FloatingWindow {
         }
     }
 
-    // Toggle Switch
     component ToggleSwitch: Rectangle {
         id: toggleSwitch
         property bool checked: true
-        property bool bindable: false  // When true, checked is controlled externally
+        property bool bindable: false
         signal toggled
 
         width: Config.sc(44)
@@ -481,28 +307,200 @@ FloatingWindow {
             y: (parent.height - height) / 2
             color: Config.text
             radius: width / 2
-
-            Behavior on x {
-                NumberAnimation {
-                    duration: 150
-                    easing.type: Easing.InOutQuad
-                }
-            }
+            Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad; } }
         }
 
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                if (!toggleSwitch.bindable) {
-                    toggleSwitch.checked = !toggleSwitch.checked;
-                }
+                if (!toggleSwitch.bindable) toggleSwitch.checked = !toggleSwitch.checked;
                 toggleSwitch.toggled();
             }
         }
     }
 
-    // Appearance Panel
+    component NumberField: Rectangle {
+        property string value: ""
+        property string suffix: ""
+
+        width: Config.sc(90)
+        height: Config.sc(32)
+        color: Config.background
+        border.color: Config.progressColor
+        border.width: 1
+        radius: Config.sc(6)
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Config.sc(8)
+            anchors.rightMargin: Config.sc(8)
+
+            TextField {
+                Layout.fillWidth: true
+                text: value
+                color: Config.text
+                font.pixelSize: Config.scFont(15)
+                font.family: Config.fontFamily
+                background: Rectangle { color: "transparent"; }
+                selectByMouse: true
+                onTextChanged: parent.parent.value = text
+            }
+
+            Text {
+                text: suffix
+                color: Config.text
+                font.pixelSize: Config.scFont(15)
+                font.family: Config.fontFamily
+                visible: suffix !== ""
+            }
+        }
+    }
+
+    component CloseButton: Item {
+        signal clicked
+
+        implicitWidth: Config.sc(32)
+        implicitHeight: Config.sc(32)
+
+        property bool isHovered: false
+
+        Rectangle {
+            anchors.fill: parent
+            color: Config.foreground
+            radius: height / 2
+            opacity: parent.isHovered ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad; } }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "\uf00d"
+            color: Config.text
+            font.pixelSize: Config.scFont(15)
+            font.bold: true
+            font.family: Config.fontFamily
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: parent.isHovered = true
+            onExited: parent.isHovered = false
+            onClicked: parent.clicked()
+        }
+    }
+
+    component ActionButton: Item {
+        property alias text: label.text
+        property color btnColor: Config.textHover
+        property real normalOpacity: 0.8
+        signal clicked
+
+        implicitWidth: Config.sc(90)
+        implicitHeight: Config.sc(40)
+
+        property bool hovered: false
+        property bool pressed: false
+
+        Text {
+            id: label
+            anchors.centerIn: parent
+            font.pixelSize: Config.scFont(text.length > 10 ? 13 : 15)
+            font.family: Config.fontFamily
+            color: Config.text
+            z: 1
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            color: btnColor
+            radius: Config.sc(15)
+            opacity: hovered ? 1 : normalOpacity
+            scale: pressed ? 0.9 : 1
+            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad; } }
+            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.InOutQuad; } }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onEntered: parent.hovered = true
+            onExited: parent.hovered = false
+            onPressed: parent.pressed = true
+            onReleased: parent.pressed = false
+            onClicked: parent.clicked()
+        }
+    }
+
+    component SettingRow: Item {
+        property string label: ""
+        property real rowOpacity: 1
+        property bool showSeparator: true
+        default property alias content: rowChildren.data
+
+        width: parent ? parent.width : 0
+        height: Config.sc(60)
+        opacity: rowOpacity
+
+        RowLayout {
+            id: rowChildren
+            anchors.fill: parent
+            anchors.leftMargin: Config.sc(20)
+            anchors.rightMargin: Config.sc(20)
+
+            Text {
+                text: label
+                color: Config.text
+                font.pixelSize: Config.scFont(15)
+                font.family: Config.fontFamily
+            }
+
+            Item { Layout.fillWidth: true; }
+        }
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Config.progressColor
+            visible: showSeparator
+        }
+    }
+
+    component SectionHeader: Item {
+        property string title: ""
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: Config.sc(32)
+
+        Text {
+            text: title
+            color: Config.text
+            font.pixelSize: Config.scFont(15)
+            font.family: Config.fontFamily
+            font.bold: true
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    component SectionCard: Rectangle {
+        default property alias content: cardContent.data
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: cardContent.height
+        color: Config.foreground
+        radius: Config.sc(15)
+
+        Column { id: cardContent; width: parent.width; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // APPEARANCE PANEL
+    // ═══════════════════════════════════════════════════════════════════
+
     component AppearancePanel: Rectangle {
         color: Config.background
         topRightRadius: Config.sc(35)
@@ -528,102 +526,19 @@ FloatingWindow {
                     font.family: Config.fontFamily
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
+                Item { Layout.fillWidth: true; }
 
-                Item {
+                ActionButton {
+                    text: "Apply"
                     Layout.preferredWidth: Config.sc(60)
                     Layout.preferredHeight: Config.sc(32)
-
-                    property bool pressed: false
-                    property bool hovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.textHover
-                        radius: height / 2
-                        scale: parent.pressed ? 0.9 : 1
-                        opacity: parent.hovered ? 1 : 0.8
-
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 100
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Apply"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: parent.pressed = true
-                        onReleased: parent.pressed = false
-                        onEntered: parent.hovered = true
-                        onExited: parent.hovered = false
-                        onClicked: {
-                            Buttoncommand.niriSettingExec(Config.niriInfo);
-                        }
-                    }
+                    onClicked: Buttoncommand.niriSettingExec(Config.niriInfo);
                 }
 
-                Item {
-                    Layout.preferredWidth: Config.sc(32)
-                    Layout.preferredHeight: Config.sc(32)
-
-                    property bool isHovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.foreground
-                        radius: height / 2
-                        opacity: parent.isHovered ? 1 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: Config.text
-                        font.pixelSize: Config.scFont(15)
-                        font.bold: true
-                        font.family: Config.fontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.isHovered = true
-                        onExited: parent.isHovered = false
-                        onClicked: Config.configPanelVisible = false
-                    }
-                }
+                CloseButton { onClicked: Config.configPanelVisible = false; }
             }
 
-            // 可滚动内容
+            // Scrollable content
             Flickable {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -634,10 +549,7 @@ FloatingWindow {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: appearanceColumn.height
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 ColumnLayout {
                     id: appearanceColumn
@@ -645,1002 +557,246 @@ FloatingWindow {
                     anchors.left: parent.left
                     spacing: Config.sc(20)
 
-                    // Window Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
+                    // ── Window ──
+                    SectionHeader { title: "Window"; }
 
-                        Text {
-                            text: "Window"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
+                    SectionCard {
+                        SettingRow { label: "Gaps"
+                            NumberField {
+                                value: Config.niriInfo ? Config.niriInfo["layout"]["gaps"] : "20"
+                                suffix: "px"
+                                onValueChanged: Config.niriInfo["layout"]["gaps"] = value;
+                            }
+                        }
+                        SettingRow { label: "Corner Radius"; showSeparator: false
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["corner_radius"] ? Config.niriInfo["corner_radius"]["radius"] : "15"
+                                suffix: "px"
+                                onValueChanged: Config.niriInfo["corner_radius"]["radius"] = value;
+                            }
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: windowColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
+                    // ── Focus Ring ──
+                    SectionHeader { title: "Focus Ring"; }
 
-                        Column {
-                            id: windowColumn
-                            width: parent.width
-
-                            // Gaps
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Gaps"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo ? Config.niriInfo["layout"]["gaps"] : "20"
-                                        suffix: "px"
-                                        onValueChanged: Config.niriInfo["layout"]["gaps"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
+                    SectionCard {
+                        SettingRow { label: "Enable"
+                            ToggleSwitch {
+                                id: focusRingToggle
+                                checked: Config.niriInfo ? Config.niriInfo["focus-ring"]["enable"] : true
+                                onToggled: Config.niriInfo["focus-ring"]["enable"] = checked;
                             }
-
-                            // Corner Radius
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Corner Radius"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["corner_radius"] ? Config.niriInfo["corner_radius"]["radius"] : "15"
-                                        suffix: "px"
-                                        onValueChanged: Config.niriInfo["corner_radius"]["radius"] = value
+                        }
+                        SettingRow { label: "Width"; rowOpacity: focusRingToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo ? Config.niriInfo["focus-ring"]["width"] : "4"
+                                suffix: "px"
+                                enabled: focusRingToggle.checked
+                                onValueChanged: Config.niriInfo["focus-ring"]["width"] = value;
+                            }
+                        }
+                        SettingRow { label: "Color"; rowOpacity: focusRingToggle.checked ? 1 : 0.5; showSeparator: false
+                            RowLayout { spacing: Config.sc(8)
+                                Rectangle {
+                                    width: Config.sc(20); height: Config.sc(20); radius: height / 2
+                                    color: focusRingColorInput.text; border.width: 1; border.color: Config.progressColor;
+                                }
+                                Rectangle {
+                                    width: Config.sc(90); height: Config.sc(32)
+                                    color: Config.background; border.color: Config.progressColor; border.width: 1; radius: Config.sc(6);
+                                    TextField {
+                                        id: focusRingColorInput
+                                        anchors.fill: parent; anchors.leftMargin: Config.sc(8); anchors.rightMargin: Config.sc(8)
+                                        text: Config.niriInfo ? Config.niriInfo["focus-ring"]["color"] : "#7fc8ff"
+                                        color: Config.text; font.pixelSize: Config.scFont(15); font.family: Config.fontFamily
+                                        background: Rectangle { color: "transparent"; }
+                                        selectByMouse: true; enabled: focusRingToggle.checked
+                                        onTextChanged: Config.niriInfo["focus-ring"]["color"] = text;
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Focus Ring Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
+                    // ── Border ──
+                    SectionHeader { title: "Border"; }
 
-                        Text {
-                            text: "Focus Ring"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
+                    SectionCard {
+                        SettingRow { label: "Enable"
+                            ToggleSwitch {
+                                id: borderToggle
+                                checked: Config.niriInfo ? Config.niriInfo["border"]["enable"] : true
+                                onToggled: Config.niriInfo["border"]["enable"] = checked;
+                            }
                         }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: focusRingColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
-
-                        Column {
-                            id: focusRingColumn
-                            width: parent.width
-
-                            // Enable
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Enable"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    ToggleSwitch {
-                                        id: focusRingEnableSwitch
-                                        checked: Config.niriInfo ? Config.niriInfo["focus-ring"]["enable"] : true
-                                        onToggled: Config.niriInfo["focus-ring"]["enable"] = checked
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
+                        SettingRow { label: "Width"; rowOpacity: borderToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo ? Config.niriInfo["border"]["width"] : "4"
+                                suffix: "px"
+                                enabled: borderToggle.checked
+                                onValueChanged: Config.niriInfo["border"]["width"] = value;
                             }
-
-                            // Width
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: focusRingEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Width"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo ? Config.niriInfo["focus-ring"]["width"] : "4"
-                                        suffix: "px"
-                                        enabled: focusRingEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["focus-ring"]["width"] = value
-                                    }
-                                }
-
+                        }
+                        SettingRow { label: "Color"; rowOpacity: borderToggle.checked ? 1 : 0.5; showSeparator: false
+                            RowLayout { spacing: Config.sc(8)
                                 Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
+                                    width: Config.sc(20); height: Config.sc(20); radius: height / 2
+                                    color: borderColorInput.text; border.width: 1; border.color: Config.progressColor;
                                 }
-                            }
-
-                            // Color
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: focusRingEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Color"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    RowLayout {
-                                        spacing: Config.sc(8)
-
-                                        Rectangle {
-                                            width: Config.sc(20)
-                                            height: Config.sc(20)
-                                            radius: height / 2
-                                            color: focusRingColorInput.text
-                                            border.width: 1
-                                            border.color: Config.progressColor
-                                        }
-
-                                        Rectangle {
-                                            width: Config.sc(90)
-                                            height: Config.sc(32)
-                                            color: Config.background
-                                            border.color: Config.progressColor
-                                            border.width: 1
-                                            radius: Config.sc(6)
-
-                                            TextField {
-                                                id: focusRingColorInput
-                                                anchors.fill: parent
-                                                anchors.leftMargin: Config.sc(8)
-                                                anchors.rightMargin: Config.sc(8)
-                                                text: Config.niriInfo ? Config.niriInfo["focus-ring"]["color"] : "#7fc8ff"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                background: Rectangle {
-                                                    color: "transparent"
-                                                }
-                                                selectByMouse: true
-                                                enabled: focusRingEnableSwitch.checked
-                                                onTextChanged: Config.niriInfo["focus-ring"]["color"] = text
-                                            }
-                                        }
+                                Rectangle {
+                                    width: Config.sc(90); height: Config.sc(32)
+                                    color: Config.background; border.color: Config.progressColor; border.width: 1; radius: Config.sc(6);
+                                    TextField {
+                                        id: borderColorInput
+                                        anchors.fill: parent; anchors.leftMargin: Config.sc(8); anchors.rightMargin: Config.sc(8)
+                                        text: Config.niriInfo ? Config.niriInfo["border"]["color"] : "#ffc87f"
+                                        color: Config.text; font.pixelSize: Config.scFont(15); font.family: Config.fontFamily
+                                        background: Rectangle { color: "transparent"; }
+                                        selectByMouse: true; enabled: borderToggle.checked
+                                        onTextChanged: Config.niriInfo["border"]["color"] = text;
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Border Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
+                    // ── Shadow ──
+                    SectionHeader { title: "Shadow"; }
 
-                        Text {
-                            text: "Border"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
+                    SectionCard {
+                        SettingRow { label: "Enable"
+                            ToggleSwitch {
+                                id: shadowToggle
+                                checked: Config.niriInfo ? Config.niriInfo["shadow"]["enable"] : false
+                                onToggled: Config.niriInfo["shadow"]["enable"] = checked;
+                            }
                         }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: borderColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
-
-                        Column {
-                            id: borderColumn
-                            width: parent.width
-
-                            // Enable
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Enable"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    ToggleSwitch {
-                                        id: borderEnableSwitch
-                                        checked: Config.niriInfo ? Config.niriInfo["border"]["enable"] : true
-                                        onToggled: Config.niriInfo["border"]["enable"] = checked
-                                    }
+                        SettingRow { label: "Softness"; rowOpacity: shadowToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo ? Config.niriInfo["shadow"]["softness"] : "30"
+                                suffix: "px"
+                                enabled: shadowToggle.checked
+                                onValueChanged: Config.niriInfo["shadow"]["softness"] = value;
+                            }
+                        }
+                        SettingRow { label: "Spread"; rowOpacity: shadowToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo ? Config.niriInfo["shadow"]["spread"] : "5"
+                                suffix: "px"
+                                enabled: shadowToggle.checked
+                                onValueChanged: Config.niriInfo["shadow"]["spread"] = value;
+                            }
+                        }
+                        SettingRow { label: "Offset"; rowOpacity: shadowToggle.checked ? 1 : 0.5
+                            RowLayout { spacing: Config.sc(8)
+                                NumberField {
+                                    value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["x"] : "0"
+                                    suffix: "X"; enabled: shadowToggle.checked
+                                    onValueChanged: Config.niriInfo["shadow"]["offset"]["x"] = value;
                                 }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
+                                NumberField {
+                                    value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["y"] : "5"
+                                    suffix: "Y"; enabled: shadowToggle.checked
+                                    onValueChanged: Config.niriInfo["shadow"]["offset"]["y"] = value;
                                 }
                             }
-
-                            // Width
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: borderEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Width"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo ? Config.niriInfo["border"]["width"] : "4"
-                                        suffix: "px"
-                                        enabled: borderEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["border"]["width"] = value
-                                    }
-                                }
-
+                        }
+                        SettingRow { label: "Color"; rowOpacity: shadowToggle.checked ? 1 : 0.5; showSeparator: false
+                            RowLayout { spacing: Config.sc(8)
                                 Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
+                                    width: Config.sc(20); height: Config.sc(20); radius: height / 2
+                                    color: shadowColorInput.text; border.width: 1; border.color: Config.progressColor;
                                 }
-                            }
-
-                            // Color
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: borderEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Color"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    RowLayout {
-                                        spacing: Config.sc(8)
-
-                                        Rectangle {
-                                            width: Config.sc(20)
-                                            height: Config.sc(20)
-                                            radius: height / 2
-                                            color: borderColorInput.text
-                                            border.width: 1
-                                            border.color: Config.progressColor
-                                        }
-
-                                        Rectangle {
-                                            width: Config.sc(90)
-                                            height: Config.sc(32)
-                                            color: Config.background
-                                            border.color: Config.progressColor
-                                            border.width: 1
-                                            radius: Config.sc(6)
-
-                                            TextField {
-                                                id: borderColorInput
-                                                anchors.fill: parent
-                                                anchors.leftMargin: Config.sc(8)
-                                                anchors.rightMargin: Config.sc(8)
-                                                text: Config.niriInfo ? Config.niriInfo["border"]["color"] : "#ffc87f"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                background: Rectangle {
-                                                    color: "transparent"
-                                                }
-                                                selectByMouse: true
-                                                enabled: borderEnableSwitch.checked
-                                                onTextChanged: Config.niriInfo["border"]["color"] = text
-                                            }
-                                        }
+                                Rectangle {
+                                    width: Config.sc(90); height: Config.sc(32)
+                                    color: Config.background; border.color: Config.progressColor; border.width: 1; radius: Config.sc(6);
+                                    TextField {
+                                        id: shadowColorInput
+                                        anchors.fill: parent; anchors.leftMargin: Config.sc(8); anchors.rightMargin: Config.sc(8)
+                                        text: Config.niriInfo ? Config.niriInfo["shadow"]["color"] : "#000000"
+                                        color: Config.text; font.pixelSize: Config.scFont(15); font.family: Config.fontFamily
+                                        background: Rectangle { color: "transparent"; }
+                                        selectByMouse: true; enabled: shadowToggle.checked
+                                        onTextChanged: Config.niriInfo["shadow"]["color"] = text;
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Shadow Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
+                    // ── Animations ──
+                    SectionHeader { title: "Animations"; }
 
-                        Text {
-                            text: "Shadow"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
+                    SectionCard {
+                        SettingRow { label: "Enable"
+                            ToggleSwitch {
+                                id: animToggle
+                                checked: Config.niriInfo ? Config.niriInfo["animations"]["enable"] : true
+                                onToggled: Config.niriInfo["animations"]["enable"] = checked;
+                            }
                         }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: shadowColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
-
-                        Column {
-                            id: shadowColumn
-                            width: parent.width
-
-                            // Enable
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Enable"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    ToggleSwitch {
-                                        id: shadowEnableSwitch
-                                        checked: Config.niriInfo ? Config.niriInfo["shadow"]["enable"] : false
-                                        onToggled: Config.niriInfo["shadow"]["enable"] = checked
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Softness
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: shadowEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Softness"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo ? Config.niriInfo["shadow"]["softness"] : "30"
-                                        suffix: "px"
-                                        enabled: shadowEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["shadow"]["softness"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Spread
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: shadowEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Spread"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo ? Config.niriInfo["shadow"]["spread"] : "5"
-                                        suffix: "px"
-                                        enabled: shadowEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["shadow"]["spread"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Offset
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: shadowEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Offset"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    RowLayout {
-                                        spacing: Config.sc(8)
-
-                                        NumberField {
-                                            value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["x"] : "0"
-                                            suffix: "X"
-                                            enabled: shadowEnableSwitch.checked
-                                            onValueChanged: Config.niriInfo["shadow"]["offset"]["x"] = value
-                                        }
-
-                                        NumberField {
-                                            value: Config.niriInfo && Config.niriInfo["shadow"]["offset"] ? Config.niriInfo["shadow"]["offset"]["y"] : "5"
-                                            suffix: "Y"
-                                            enabled: shadowEnableSwitch.checked
-                                            onValueChanged: Config.niriInfo["shadow"]["offset"]["y"] = value
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Color
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: shadowEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Color"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    RowLayout {
-                                        spacing: Config.sc(8)
-
-                                        Rectangle {
-                                            width: Config.sc(20)
-                                            height: Config.sc(20)
-                                            radius: height / 2
-                                            color: shadowColorInput.text
-                                            border.width: 1
-                                            border.color: Config.progressColor
-                                        }
-
-                                        Rectangle {
-                                            width: Config.sc(90)
-                                            height: Config.sc(32)
-                                            color: Config.background
-                                            border.color: Config.progressColor
-                                            border.width: 1
-                                            radius: Config.sc(6)
-
-                                            TextField {
-                                                id: shadowColorInput
-                                                anchors.fill: parent
-                                                anchors.leftMargin: Config.sc(8)
-                                                anchors.rightMargin: Config.sc(8)
-                                                text: Config.niriInfo ? Config.niriInfo["shadow"]["color"] : "#000000"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                background: Rectangle {
-                                                    color: "transparent"
-                                                }
-                                                selectByMouse: true
-                                                enabled: shadowEnableSwitch.checked
-                                                onTextChanged: Config.niriInfo["shadow"]["color"] = text
-                                            }
-                                        }
-                                    }
-                                }
+                        SettingRow { label: "Slowdown"; rowOpacity: animToggle.checked ? 1 : 0.5; showSeparator: false
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["animations"] ? Config.niriInfo["animations"]["slowdown"] : "1.0"
+                                suffix: "x"
+                                enabled: animToggle.checked
+                                onValueChanged: Config.niriInfo["animations"]["slowdown"] = value;
                             }
                         }
                     }
 
-                    // Animations Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
+                    // ── Extra Gaps ──
+                    SectionHeader { title: "Extra Gaps"; }
 
-                        Text {
-                            text: "Animations"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: animationsColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
-
-                        Column {
-                            id: animationsColumn
-                            width: parent.width
-
-                            // Enable
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Enable"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    ToggleSwitch {
-                                        id: animationsEnableSwitch
-                                        checked: Config.niriInfo ? Config.niriInfo["animations"]["enable"] : true
-                                        onToggled: Config.niriInfo["animations"]["enable"] = checked
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
+                    SectionCard {
+                        SettingRow { label: "Enable"
+                            ToggleSwitch {
+                                id: extraGapsToggle
+                                checked: Config.niriInfo ? Config.niriInfo["struts"]["enabled"] : false
+                                onToggled: Config.niriInfo["struts"]["enabled"] = checked;
                             }
-
-                            // Slowdown
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: animationsEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Slowdown"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["animations"] ? Config.niriInfo["animations"]["slowdown"] : "1.0"
-                                        suffix: "x"
-                                        enabled: animationsEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["animations"]["slowdown"] = value
-                                    }
-                                }
+                        }
+                        SettingRow { label: "Top";    rowOpacity: extraGapsToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["top"] : "0"
+                                suffix: "px"; enabled: extraGapsToggle.checked
+                                onValueChanged: Config.niriInfo["struts"]["top"] = value;
+                            }
+                        }
+                        SettingRow { label: "Bottom"; rowOpacity: extraGapsToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["bottom"] : "0"
+                                suffix: "px"; enabled: extraGapsToggle.checked
+                                onValueChanged: Config.niriInfo["struts"]["bottom"] = value;
+                            }
+                        }
+                        SettingRow { label: "Left";   rowOpacity: extraGapsToggle.checked ? 1 : 0.5
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["left"] : "0"
+                                suffix: "px"; enabled: extraGapsToggle.checked
+                                onValueChanged: Config.niriInfo["struts"]["left"] = value;
+                            }
+                        }
+                        SettingRow { label: "Right";  rowOpacity: extraGapsToggle.checked ? 1 : 0.5; showSeparator: false
+                            NumberField {
+                                value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["right"] : "0"
+                                suffix: "px"; enabled: extraGapsToggle.checked
+                                onValueChanged: Config.niriInfo["struts"]["right"] = value;
                             }
                         }
                     }
 
-                    // Extra Gaps Section
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Config.sc(32)
-
-                        Text {
-                            text: "Extra Gaps"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: extraGapsColumn.height
-                        color: Config.foreground
-                        radius: Config.sc(15)
-
-                        Column {
-                            id: extraGapsColumn
-                            width: parent.width
-
-                            // Enable
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Enable"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    ToggleSwitch {
-                                        id: extraGapsEnableSwitch
-                                        checked: Config.niriInfo ? Config.niriInfo["struts"]["enabled"] : false
-                                        onToggled: Config.niriInfo["struts"]["enabled"] = checked
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Top
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: extraGapsEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Top"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["top"] : "0"
-                                        suffix: "px"
-                                        enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["struts"]["top"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Bottom
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: extraGapsEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Bottom"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["bottom"] : "0"
-                                        suffix: "px"
-                                        enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["struts"]["bottom"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Left
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: extraGapsEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Left"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["left"] : "0"
-                                        suffix: "px"
-                                        enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["struts"]["left"] = value
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 1
-                                    color: Config.progressColor
-                                    opacity: 1
-                                }
-                            }
-
-                            // Right
-                            Item {
-                                width: parent.width
-                                height: Config.sc(60)
-                                opacity: extraGapsEnableSwitch.checked ? 1 : 0.5
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Config.sc(20)
-                                    anchors.rightMargin: Config.sc(20)
-
-                                    Text {
-                                        text: "Right"
-                                        color: Config.text
-                                        font.pixelSize: Config.scFont(15)
-                                        font.family: Config.fontFamily
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    NumberField {
-                                        value: Config.niriInfo && Config.niriInfo["struts"] ? Config.niriInfo["struts"]["right"] : "0"
-                                        suffix: "px"
-                                        enabled: extraGapsEnableSwitch.checked
-                                        onValueChanged: Config.niriInfo["struts"]["right"] = value
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
-                    }
+                    Item { Layout.fillHeight: true; }
                 }
             }
         }
     }
 
-    // Wallpaper Panel
+    // ═══════════════════════════════════════════════════════════════════
+    // WALLPAPER PANEL
+    // ═══════════════════════════════════════════════════════════════════
+
     component WallpaperPanel: Rectangle {
         color: Config.background
         topRightRadius: Config.sc(35)
@@ -1650,7 +806,7 @@ FloatingWindow {
             anchors.fill: parent
             spacing: 0
 
-            // Header (固定，不滚动)
+            // Header
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: Config.sc(20)
@@ -1664,106 +820,24 @@ FloatingWindow {
                     font.pixelSize: Config.scFont(18)
                     font.bold: true
                     font.family: Config.fontFamily
-                    //Layout.preferredWidth: Config.sc(120)
-                    //Layout.alignment: Qt.AlignVCenter
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
+                Item { Layout.fillWidth: true; }
 
-                Item {
+                ActionButton {
+                    text: "Apply"
                     Layout.preferredWidth: Config.sc(60)
                     Layout.preferredHeight: Config.sc(32)
-
-                    property bool pressed: false
-                    property bool hovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.textHover
-                        radius: height / 2
-                        scale: parent.pressed ? 0.9 : 1
-                        opacity: parent.hovered ? 1 : 0.8
-
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 100
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Apply"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: parent.pressed = true
-                        onReleased: parent.pressed = false
-                        onEntered: parent.hovered = true
-                        onExited: parent.hovered = false
-                        onClicked: {
-                            Buttoncommand.changeWallpaper(modelData.path);
-                        }
+                    onClicked: {
+                        if (configPanel.selectedWallpaperIndex >= 0 && configPanel.selectedWallpaperIndex < configPanel.wallPaperModel.length)
+                            Buttoncommand.changeWallpaper(configPanel.wallPaperModel[configPanel.selectedWallpaperIndex].path);
                     }
                 }
 
-                Item {
-                    Layout.preferredWidth: Config.sc(32)
-                    Layout.preferredHeight: Config.sc(32)
-
-                    property bool isHovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.foreground
-                        radius: height / 2
-                        opacity: parent.isHovered ? 1 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: Config.text
-                        font.pixelSize: Config.scFont(15)
-                        font.bold: true
-                        font.family: Config.fontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.isHovered = true
-                        onExited: parent.isHovered = false
-                        onClicked: Config.configPanelVisible = false
-                    }
-                }
+                CloseButton { onClicked: Config.configPanelVisible = false; }
             }
 
-            // 可滚动内容
+            // Scrollable content
             Flickable {
                 id: wallpaperFlickable
                 Layout.fillWidth: true
@@ -1776,10 +850,7 @@ FloatingWindow {
                 contentHeight: wallpaperColumn.height
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 ColumnLayout {
                     id: wallpaperColumn
@@ -1805,6 +876,9 @@ FloatingWindow {
                             model: configPanel.wallPaperModel
 
                             Rectangle {
+                                required property int index
+                                required property var modelData
+
                                 width: (wallpaperFlickable.width - Config.sc(36)) / 3
                                 height: Math.round(((wallpaperFlickable.width - Config.sc(36)) / 3) * 9 / 16)
                                 color: Config.foreground
@@ -1844,7 +918,6 @@ FloatingWindow {
                                     height: Config.sc(22)
                                     color: Config.textHover
                                     radius: height / 2
-
                                     Text {
                                         anchors.centerIn: parent
                                         text: "\uf00c"
@@ -1862,47 +935,10 @@ FloatingWindow {
         }
     }
 
-    // Number Field
-    component NumberField: Rectangle {
-        property string value: ""
-        property string suffix: ""
+    // ═══════════════════════════════════════════════════════════════════
+    // BLUETOOTH PANEL
+    // ═══════════════════════════════════════════════════════════════════
 
-        width: Config.sc(90)
-        height: Config.sc(32)
-        color: Config.background
-        border.color: Config.progressColor
-        border.width: 1
-        radius: Config.sc(6)
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: Config.sc(8)
-            anchors.rightMargin: Config.sc(8)
-
-            TextField {
-                Layout.fillWidth: true
-                text: value
-                color: Config.text
-                font.pixelSize: Config.scFont(15)
-                font.family: Config.fontFamily
-                background: Rectangle {
-                    color: "transparent"
-                }
-                selectByMouse: true
-                onTextChanged: parent.parent.value = text
-            }
-
-            Text {
-                text: suffix
-                color: Config.text
-                font.pixelSize: Config.scFont(15)
-                font.family: Config.fontFamily
-                visible: suffix !== ""
-            }
-        }
-    }
-
-    // Bluetooth Panel
     component BlueToothPanel: Rectangle {
         id: bluetoothPanel
         color: Config.background
@@ -1931,48 +967,9 @@ FloatingWindow {
                     font.family: Config.fontFamily
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
+                Item { Layout.fillWidth: true; }
 
-                Item {
-                    Layout.preferredWidth: Config.sc(32)
-                    Layout.preferredHeight: Config.sc(32)
-
-                    property bool isHovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.foreground
-                        radius: height / 2
-                        opacity: parent.isHovered ? 1 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: Config.text
-                        font.pixelSize: Config.scFont(15)
-                        font.bold: true
-                        font.family: Config.fontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.isHovered = true
-                        onExited: parent.isHovered = false
-                        onClicked: Config.configPanelVisible = false
-                    }
-                }
+                CloseButton { onClicked: Config.configPanelVisible = false; }
             }
 
             Flickable {
@@ -1985,10 +982,7 @@ FloatingWindow {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: bluetoothColumn.height
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 ColumnLayout {
                     id: bluetoothColumn
@@ -1996,6 +990,7 @@ FloatingWindow {
                     anchors.left: parent.left
                     spacing: Config.sc(20)
 
+                    // Toggle
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(60)
@@ -2013,24 +1008,21 @@ FloatingWindow {
                         }
 
                         ToggleSwitch {
-                            id: bluetoothToggle
                             anchors.right: parent.right
                             anchors.rightMargin: Config.sc(20)
                             anchors.verticalCenter: parent.verticalCenter
                             checked: bluetoothPanel.bluetoothEnabled
-                            onToggled: {
-                                bluetoothPanel.bluetoothEnabled = !bluetoothPanel.bluetoothEnabled;
-                            }
+                            onToggled: bluetoothPanel.bluetoothEnabled = !bluetoothPanel.bluetoothEnabled;
                         }
                     }
 
+                    // New Devices
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(32)
                         visible: bluetoothPanel.bluetoothEnabled
 
                         Text {
-                            id: newDevicesText
                             text: "New Devices"
                             color: Config.text
                             font.pixelSize: Config.scFont(15)
@@ -2040,7 +1032,7 @@ FloatingWindow {
                         }
 
                         Item {
-                            id: loadingIcon
+                            id: btLoadingIcon
                             width: Config.sc(32)
                             height: Config.sc(32)
                             anchors.right: parent.right
@@ -2056,9 +1048,8 @@ FloatingWindow {
                             }
 
                             RotationAnimation {
-                                target: loadingIcon
-                                from: 0
-                                to: 360
+                                target: btLoadingIcon
+                                from: 0; to: 360
                                 duration: 1000
                                 loops: Animation.Infinite
                                 running: configPanel.currentPanel === 2
@@ -2068,16 +1059,10 @@ FloatingWindow {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.max(bluetoothList.count * Config.sc(60), Config.sc(60))
+                        Layout.preferredHeight: Math.max(btDeviceList.count * Config.sc(60), Config.sc(60))
                         color: Config.foreground
                         radius: Config.sc(15)
                         visible: bluetoothPanel.bluetoothEnabled
-
-                        Behavior on Layout.preferredHeight {
-                            NumberAnimation {
-                                duration: 150
-                            }
-                        }
 
                         Text {
                             text: "Searching for devices..."
@@ -2085,95 +1070,50 @@ FloatingWindow {
                             font.family: Config.fontFamily
                             color: Config.text
                             anchors.centerIn: parent
-                            visible: bluetoothList.count === 0
+                            visible: btDeviceList.count === 0
                         }
 
                         ListView {
-                            id: bluetoothList
+                            id: btDeviceList
                             model: configPanel.bluetoothModel
                             anchors.fill: parent
-                            spacing: Config.sc(0)
-                            visible: bluetoothList.count > 0
+                            spacing: 0
+                            visible: btDeviceList.count > 0
 
                             delegate: Item {
-                                id: bluetoothDelegate
+                                id: btDelegate
+                                required property var modelData
+                                required property int index
+
                                 width: parent.width
                                 height: Config.sc(60)
 
-                                property bool hovered: false
-
                                 RowLayout {
                                     anchors.fill: parent
-                                    spacing: Config.sc(0)
+                                    anchors.leftMargin: Config.sc(20)
+                                    anchors.rightMargin: Config.sc(20)
 
                                     Text {
                                         text: modelData.name
                                         font.pixelSize: Config.scFont(15)
                                         font.family: Config.fontFamily
                                         color: Config.text
-                                        Layout.leftMargin: Config.sc(20)
-                                    }
-
-                                    Item {
                                         Layout.fillWidth: true
                                     }
 
-                                    Item {
-                                        width: Config.sc(90)
-                                        height: Config.sc(40)
-                                        Layout.rightMargin: Config.sc(20)
-
-                                        property bool pressed: false
-
-                                        Text {
-                                            text: "Connect"
-                                            font.pixelSize: Config.scFont(15)
-                                            font.family: Config.fontFamily
-                                            color: Config.text
-                                            anchors.centerIn: parent
-                                            z: 1
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onEntered: bluetoothDelegate.hovered = true
-                                            onExited: bluetoothDelegate.hovered = false
-                                            onPressed: parent.pressed = true
-                                            onReleased: parent.pressed = false
-                                            onClicked: {
-                                                Buttoncommand.bluetoothConnect(modelData.address);
-                                                refreshBluetoothTimer.start();
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            color: Config.textHover
-                                            radius: Config.sc(15)
-                                            opacity: bluetoothDelegate.hovered ? 1 : 0.8
-                                            scale: parent.pressed ? 0.9 : 1
-
-                                            Behavior on opacity {
-                                                NumberAnimation {
-                                                    duration: 200
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
-
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: 100
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
+                                    ActionButton {
+                                        text: "Connect"
+                                        Layout.preferredWidth: Config.sc(90)
+                                        Layout.preferredHeight: Config.sc(40)
+                                        onClicked: {
+                                            Buttoncommand.bluetoothConnect(modelData.address);
+                                            refreshBluetoothTimer.start();
                                         }
                                     }
                                 }
 
                                 Rectangle {
-                                    visible: index < bluetoothList.count - 1
+                                    visible: index < btDeviceList.count - 1
                                     anchors.bottom: parent.bottom
                                     width: parent.width
                                     height: 1
@@ -2183,13 +1123,13 @@ FloatingWindow {
                         }
                     }
 
+                    // Connected Devices
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(32)
                         visible: bluetoothPanel.bluetoothEnabled
 
                         Text {
-                            id: connectedDevices
                             text: "Connected Devices"
                             color: Config.text
                             font.pixelSize: Config.scFont(15)
@@ -2201,103 +1141,53 @@ FloatingWindow {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: connectedList.count * Config.sc(60)
+                        Layout.preferredHeight: btConnectedList.count * Config.sc(60)
                         color: Config.foreground
                         radius: Config.sc(15)
                         visible: bluetoothPanel.bluetoothEnabled
 
-                        Behavior on Layout.preferredHeight {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
                         ListView {
-                            id: connectedList
+                            id: btConnectedList
                             model: configPanel.connectedModel
                             anchors.fill: parent
-                            spacing: Config.sc(0)
+                            spacing: 0
 
                             delegate: Item {
-                                id: delegateItem
+                                id: btConnectedDelegate
+                                required property var modelData
+                                required property int index
+
                                 width: parent.width
                                 height: Config.sc(60)
 
-                                property bool hovered: false
-
                                 RowLayout {
                                     anchors.fill: parent
-                                    spacing: Config.sc(0)
+                                    anchors.leftMargin: Config.sc(20)
+                                    anchors.rightMargin: Config.sc(20)
 
                                     Text {
                                         text: modelData.name
                                         font.pixelSize: Config.scFont(15)
                                         font.family: Config.fontFamily
                                         color: Config.text
-                                        Layout.leftMargin: Config.sc(20)
-                                    }
-
-                                    Item {
                                         Layout.fillWidth: true
                                     }
 
-                                    Item {
-                                        width: Config.sc(90)
-                                        height: Config.sc(40)
-                                        Layout.rightMargin: Config.sc(20)
-
-                                        property bool pressed: false
-
-                                        Text {
-                                            text: "Delete"
-                                            font.pixelSize: Config.scFont(15)
-                                            font.family: Config.fontFamily
-                                            color: Config.text
-                                            anchors.centerIn: parent
-                                            z: 1
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onEntered: delegateItem.hovered = true
-                                            onExited: delegateItem.hovered = false
-                                            onPressed: parent.pressed = true
-                                            onReleased: parent.pressed = false
-                                            onClicked: {
-                                                Buttoncommand.bluetoothDisconnect(modelData.address);
-                                                refreshConnectedTimer.start();
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            color: Config.closeColor
-                                            radius: Config.sc(15)
-                                            opacity: delegateItem.hovered ? 1 : 0.6
-                                            scale: parent.pressed ? 0.9 : 1
-
-                                            Behavior on opacity {
-                                                NumberAnimation {
-                                                    duration: 200
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
-
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: 100
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
+                                    ActionButton {
+                                        text: "Delete"
+                                        btnColor: Config.closeColor
+                                        normalOpacity: 0.6
+                                        Layout.preferredWidth: Config.sc(90)
+                                        Layout.preferredHeight: Config.sc(40)
+                                        onClicked: {
+                                            Buttoncommand.bluetoothDisconnect(modelData.address);
+                                            refreshConnectedTimer.start();
                                         }
                                     }
                                 }
 
                                 Rectangle {
-                                    visible: index < connectedList.count - 1
+                                    visible: index < btConnectedList.count - 1
                                     anchors.bottom: parent.bottom
                                     width: parent.width
                                     height: 1
@@ -2306,12 +1196,17 @@ FloatingWindow {
                             }
                         }
                     }
+
+                    Item { Layout.fillHeight: true; }
                 }
             }
         }
     }
 
-    // WiFi Panel
+    // ═══════════════════════════════════════════════════════════════════
+    // WIFI PANEL
+    // ═══════════════════════════════════════════════════════════════════
+
     component WifiPanel: Rectangle {
         id: wifiPanel
         color: Config.background
@@ -2340,48 +1235,9 @@ FloatingWindow {
                     font.family: Config.fontFamily
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
+                Item { Layout.fillWidth: true; }
 
-                Item {
-                    Layout.preferredWidth: Config.sc(32)
-                    Layout.preferredHeight: Config.sc(32)
-
-                    property bool isHovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.foreground
-                        radius: height / 2
-                        opacity: parent.isHovered ? 1 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: Config.text
-                        font.pixelSize: Config.scFont(15)
-                        font.bold: true
-                        font.family: Config.fontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.isHovered = true
-                        onExited: parent.isHovered = false
-                        onClicked: Config.configPanelVisible = false
-                    }
-                }
+                CloseButton { onClicked: Config.configPanelVisible = false; }
             }
 
             Flickable {
@@ -2394,10 +1250,7 @@ FloatingWindow {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: wifiColumn.height
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 ColumnLayout {
                     id: wifiColumn
@@ -2405,7 +1258,7 @@ FloatingWindow {
                     anchors.left: parent.left
                     spacing: Config.sc(20)
 
-                    // WiFi Enable Toggle
+                    // Toggle
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(60)
@@ -2423,18 +1276,15 @@ FloatingWindow {
                         }
 
                         ToggleSwitch {
-                            id: wifiToggle
                             anchors.right: parent.right
                             anchors.rightMargin: Config.sc(20)
                             anchors.verticalCenter: parent.verticalCenter
                             checked: wifiPanel.wifiEnabled
-                            onToggled: {
-                                wifiPanel.wifiEnabled = !wifiPanel.wifiEnabled;
-                            }
+                            onToggled: wifiPanel.wifiEnabled = !wifiPanel.wifiEnabled;
                         }
                     }
 
-                    // Connected WiFi Section
+                    // Connected
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(32)
@@ -2461,17 +1311,20 @@ FloatingWindow {
                             id: wifiConnectedList
                             model: configPanel.wifiConnected
                             anchors.fill: parent
-                            spacing: Config.sc(0)
+                            spacing: 0
 
                             delegate: Item {
                                 id: wifiConnectedDelegate
+                                required property var modelData
+                                required property int index
+
                                 width: parent.width
                                 height: Config.sc(60)
 
-                                property bool hovered: false
-
                                 RowLayout {
                                     anchors.fill: parent
+                                    anchors.leftMargin: Config.sc(20)
+                                    anchors.rightMargin: Config.sc(20)
                                     spacing: Config.sc(12)
 
                                     Text {
@@ -2479,7 +1332,6 @@ FloatingWindow {
                                         font.pixelSize: Config.scFont(18)
                                         font.family: Config.fontFamily
                                         color: Config.text
-                                        Layout.leftMargin: Config.sc(20)
                                     }
 
                                     Column {
@@ -2502,60 +1354,13 @@ FloatingWindow {
                                         }
                                     }
 
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Item {
-                                        width: Config.sc(90)
-                                        height: Config.sc(40)
-                                        Layout.rightMargin: Config.sc(20)
-
-                                        property bool pressed: false
-
-                                        Text {
-                                            text: "Disconnect"
-                                            font.pixelSize: Config.scFont(13)
-                                            font.family: Config.fontFamily
-                                            color: Config.text
-                                            anchors.centerIn: parent
-                                            z: 1
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onEntered: wifiConnectedDelegate.hovered = true
-                                            onExited: wifiConnectedDelegate.hovered = false
-                                            onPressed: parent.pressed = true
-                                            onReleased: parent.pressed = false
-                                            onClicked: {
-                                                Buttoncommand.wifiDisconnect(modelData.name);
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            color: Config.closeColor
-                                            radius: Config.sc(15)
-                                            opacity: wifiConnectedDelegate.hovered ? 1 : 0.6
-                                            scale: parent.pressed ? 0.9 : 1
-
-                                            Behavior on opacity {
-                                                NumberAnimation {
-                                                    duration: 200
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
-
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: 100
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
-                                        }
+                                    ActionButton {
+                                        text: "Disconnect"
+                                        btnColor: Config.closeColor
+                                        normalOpacity: 0.6
+                                        Layout.preferredWidth: Config.sc(90)
+                                        Layout.preferredHeight: Config.sc(40)
+                                        onClicked: Buttoncommand.wifiDisconnect(modelData.name);
                                     }
                                 }
 
@@ -2565,13 +1370,12 @@ FloatingWindow {
                                     width: parent.width
                                     height: 1
                                     color: Config.progressColor
-                                    opacity: 1
                                 }
                             }
                         }
                     }
 
-                    // Available Networks Section
+                    // Available Networks
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: Config.sc(32)
@@ -2604,8 +1408,7 @@ FloatingWindow {
 
                             RotationAnimation {
                                 target: wifiLoadingIcon
-                                from: 0
-                                to: 360
+                                from: 0; to: 360
                                 duration: 1000
                                 loops: Animation.Infinite
                                 running: configPanel.currentPanel === 3
@@ -2620,12 +1423,6 @@ FloatingWindow {
                         radius: Config.sc(15)
                         visible: wifiPanel.wifiEnabled
 
-                        Behavior on Layout.preferredHeight {
-                            NumberAnimation {
-                                duration: 150
-                            }
-                        }
-
                         Text {
                             text: "Scanning for networks..."
                             font.pixelSize: Config.scFont(15)
@@ -2639,56 +1436,33 @@ FloatingWindow {
                             id: wifiScanList
                             model: configPanel.wifiList
                             anchors.fill: parent
-                            spacing: Config.sc(0)
+                            spacing: 0
                             visible: wifiScanList.count > 0
 
                             delegate: Item {
                                 id: wifiScanDelegate
+                                required property var modelData
+                                required property int index
+
                                 width: parent.width
                                 height: Config.sc(60)
 
-                                property bool hovered: false
-
                                 RowLayout {
                                     anchors.fill: parent
+                                    anchors.leftMargin: Config.sc(20)
+                                    anchors.rightMargin: Config.sc(20)
                                     spacing: Config.sc(12)
 
-                                    // Signal strength icon
+                                    // Signal icon with opacity for strength
                                     Text {
-                                        text: {
-                                            let signal = parseInt(modelData.signal);
-                                            if (signal >= 80)
-                                                return "\uf1eb";
-                                            else if (signal >= 60)
-                                                return "\uf1eb";
-                                            else if (signal >= 40)
-                                                return "\uf1eb";
-                                            else
-                                                return "\uf1eb";
-                                        }
+                                        text: "\uf1eb"
                                         font.pixelSize: Config.scFont(18)
                                         font.family: Config.fontFamily
-                                        color: {
-                                            let signal = parseInt(modelData.signal);
-                                            if (signal >= 80)
-                                                return Config.text;
-                                            else if (signal >= 60)
-                                                return Config.text;
-                                            else
-                                                return Config.text;
-                                        }
+                                        color: Config.text
                                         opacity: {
-                                            let signal = parseInt(modelData.signal);
-                                            if (signal >= 80)
-                                                return 1;
-                                            else if (signal >= 60)
-                                                return 0.8;
-                                            else if (signal >= 40)
-                                                return 0.6;
-                                            else
-                                                return 0.4;
+                                            let s = parseInt(modelData.signal);
+                                            return s >= 80 ? 1 : s >= 60 ? 0.8 : s >= 40 ? 0.6 : 0.4;
                                         }
-                                        Layout.leftMargin: Config.sc(20)
                                     }
 
                                     Column {
@@ -2711,74 +1485,21 @@ FloatingWindow {
                                         }
                                     }
 
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-
-                                    // Signal strength
                                     Text {
                                         text: (modelData.signal || "0") + "%"
                                         font.pixelSize: Config.scFont(13)
                                         font.family: Config.fontFamily
                                         color: Config.text
                                         opacity: 0.6
-                                        Layout.rightMargin: Config.sc(16)
                                     }
 
-                                    Item {
-                                        width: Config.sc(90)
-                                        height: Config.sc(40)
-                                        Layout.rightMargin: Config.sc(20)
-
-                                        property bool pressed: false
-
-                                        Text {
-                                            text: "Connect"
-                                            font.pixelSize: Config.scFont(15)
-                                            font.family: Config.fontFamily
-                                            color: Config.text
-                                            anchors.centerIn: parent
-                                            z: 1
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onEntered: wifiScanDelegate.hovered = true
-                                            onExited: wifiScanDelegate.hovered = false
-                                            onPressed: parent.pressed = true
-                                            onReleased: parent.pressed = false
-                                            onClicked: {
-                                                Config.selectedWifi = {
-                                                    name: modelData.name,
-                                                    signal: modelData.signal,
-                                                    security: modelData.security
-                                                };
-                                                Config.wifiPasswordPopupVisible = true;
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            color: Config.textHover
-                                            radius: Config.sc(15)
-                                            opacity: wifiScanDelegate.hovered ? 1 : 0.8
-                                            scale: parent.pressed ? 0.9 : 1
-
-                                            Behavior on opacity {
-                                                NumberAnimation {
-                                                    duration: 200
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
-
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: 100
-                                                    easing.type: Easing.InOutQuad
-                                                }
-                                            }
+                                    ActionButton {
+                                        text: "Connect"
+                                        Layout.preferredWidth: Config.sc(90)
+                                        Layout.preferredHeight: Config.sc(40)
+                                        onClicked: {
+                                            Config.selectedWifi = { name: modelData.name, signal: modelData.signal, security: modelData.security };
+                                            Config.wifiPasswordPopupVisible = true;
                                         }
                                     }
                                 }
@@ -2789,33 +1510,31 @@ FloatingWindow {
                                     width: parent.width
                                     height: 1
                                     color: Config.progressColor
-                                    opacity: 1
                                 }
                             }
                         }
                     }
 
-                    Item {
-                        Layout.fillHeight: true
-                    }
+                    Item { Layout.fillHeight: true; }
                 }
             }
         }
     }
 
-    // Mode Selector (Dropdown)
+    // ═══════════════════════════════════════════════════════════════════
+    // MODE SELECTOR (for Display panel)
+    // ═══════════════════════════════════════════════════════════════════
+
     component ModeSelector: Item {
         id: modeSelector
         property var modes: []
         property string currentMode: ""
-        property int selectedIndex: 0
         property bool expanded: false
         signal modeSelected(string mode)
 
         width: Config.sc(160)
         height: Config.sc(32)
 
-        // Selector button
         Rectangle {
             anchors.fill: parent
             color: Config.background
@@ -2848,23 +1567,16 @@ FloatingWindow {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (modeSelector.expanded) {
-                        dropdownPopup.close();
-                    } else {
-                        dropdownPopup.open();
-                    }
-                }
+                onClicked: expanded ? dropdownPopup.close() : dropdownPopup.open()
             }
         }
 
-        // Dropdown popup (using Popup to avoid clipping issues)
         Popup {
             id: dropdownPopup
             x: 0
             y: modeSelector.height + Config.sc(2)
             width: modeSelector.width
-            height: Config.sc(32) * 4  // Max 4 items visible
+            height: Config.sc(32) * 4
             padding: 0
             background: Rectangle {
                 color: Config.background
@@ -2883,10 +1595,7 @@ FloatingWindow {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: modeListColumn.height
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 Column {
                     id: modeListColumn
@@ -2897,17 +1606,13 @@ FloatingWindow {
                         model: modeSelector.modes
 
                         Rectangle {
+                            required property string modelData
+
                             width: dropdownPopup.width - Config.sc(4)
                             height: Config.sc(32)
                             color: modeItemMouseArea.containsMouse ? Config.textselect : "transparent"
                             radius: Config.sc(4)
-
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: 200
-                                    easing.type: Easing.InOutQuad
-                                }
-                            }
+                            Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.InOutQuad; } }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -2950,7 +1655,10 @@ FloatingWindow {
         }
     }
 
-    // Display Panel
+    // ═══════════════════════════════════════════════════════════════════
+    // DISPLAY PANEL
+    // ═══════════════════════════════════════════════════════════════════
+
     component DisplayPanel: Rectangle {
         id: displayPanel
         color: Config.background
@@ -2960,28 +1668,16 @@ FloatingWindow {
         property var setMonitor: []
         property string setPriScreen: ""
 
-        // Use Config.priScreen directly for primary monitor check
         function isPrimary(name) {
-            // 如果有选中的主屏幕，使用它；否则使用 Config.priScreen
             let target = displayPanel.setPriScreen !== "" ? displayPanel.setPriScreen : Config.priScreen;
             return name === target;
         }
 
         Component.onCompleted: {
-            monitorInfo();
-        }
-
-        function monitorInfo() {
             let info = [];
-
             for (let i = 0; i < configPanel.monitors.length; i++) {
-                info.push({
-                    name: configPanel.monitors[i].name,
-                    currentMode: configPanel.monitors[i].currentMode,
-                    scale: configPanel.monitors[i].scale
-                });
+                info.push({ name: configPanel.monitors[i].name, currentMode: configPanel.monitors[i].currentMode, scale: configPanel.monitors[i].scale });
             }
-
             setMonitor = info;
         }
 
@@ -3005,124 +1701,31 @@ FloatingWindow {
                     font.family: Config.fontFamily
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
+                Item { Layout.fillWidth: true; }
 
-                Item {
+                ActionButton {
+                    text: "Apply"
                     Layout.preferredWidth: Config.sc(60)
                     Layout.preferredHeight: Config.sc(32)
-
-                    property bool pressed: false
-                    property bool hovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.textHover
-                        radius: height / 2
-                        scale: parent.pressed ? 0.9 : 1
-                        opacity: parent.hovered ? 1 : 0.8
-
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: 100
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Apply"
-                            color: Config.text
-                            font.pixelSize: Config.scFont(15)
-                            font.family: Config.fontFamily
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: parent.pressed = true
-                        onReleased: parent.pressed = false
-                        onEntered: parent.hovered = true
-                        onExited: parent.hovered = false
-                        onClicked: {
-                            if (displayPanel.setMonitor.length > 0) {
-                                Buttoncommand.setMonitorExec(displayPanel.setMonitor);
-                            }
-
-                            if (displayPanel.setPriScreen !== "") {
-                                let width = "";
-                                let height = "";
-
-                                // 从 monitors 数组中获取屏幕信息
-                                for (let i = 0; i < displayPanel.setMonitor.length; i++) {
-                                    if (displayPanel.setMonitor[i].name === displayPanel.setPriScreen) {
-                                        let modeMatch = displayPanel.setMonitor[i].currentMode.match(/(\d+)x(\d+)/);
-                                        if (modeMatch) {
-                                            width = parseInt(modeMatch[1]);
-                                            height = parseInt(modeMatch[2]);
-                                            break;
-                                        }
-                                    }
+                    onClicked: {
+                        if (displayPanel.setMonitor.length > 0)
+                            Buttoncommand.setMonitorExec(displayPanel.setMonitor);
+                        if (displayPanel.setPriScreen !== "") {
+                            let w = "", h = "";
+                            for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                if (displayPanel.setMonitor[i].name === displayPanel.setPriScreen) {
+                                    let m = displayPanel.setMonitor[i].currentMode.match(/(\d+)x(\d+)/);
+                                    if (m) { w = parseInt(m[1]); h = parseInt(m[2]); break; }
                                 }
-
-                                // 使用小写的 screenWidth/screenHeight
-                                Config.screenWidth = width;
-                                Config.screenHeight = height;
-                                Config.priScreen = displayPanel.setPriScreen;
-                                console.warn("Screen size:", Config.screenWidth, Config.screenHeight);
                             }
+                            Config.screenWidth = w;
+                            Config.screenHeight = h;
+                            Config.priScreen = displayPanel.setPriScreen;
                         }
                     }
                 }
 
-                Item {
-                    Layout.preferredWidth: Config.sc(32)
-                    Layout.preferredHeight: Config.sc(32)
-
-                    property bool isHovered: false
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Config.foreground
-                        radius: height / 2
-                        opacity: parent.isHovered ? 1 : 0
-
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.InOutQuad
-                            }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "\uf00d"
-                        color: Config.text
-                        font.pixelSize: Config.scFont(15)
-                        font.bold: true
-                        font.family: Config.fontFamily
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: parent.isHovered = true
-                        onExited: parent.isHovered = false
-                        onClicked: Config.configPanelVisible = false
-                    }
-                }
+                CloseButton { onClicked: Config.configPanelVisible = false; }
             }
 
             // Scrollable content
@@ -3136,10 +1739,7 @@ FloatingWindow {
                 boundsBehavior: Flickable.StopAtBounds
                 contentWidth: width
                 contentHeight: displayColumn.height
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; }
 
                 ColumnLayout {
                     id: displayColumn
@@ -3151,10 +1751,12 @@ FloatingWindow {
                         model: configPanel.monitors
 
                         ColumnLayout {
+                            required property var modelData
+
                             Layout.fillWidth: true
                             spacing: Config.sc(10)
 
-                            // Monitor name section header
+                            // Monitor name header
                             Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: Config.sc(32)
@@ -3169,7 +1771,7 @@ FloatingWindow {
                                 }
 
                                 Text {
-                                    text: displayPanel.isPrimary(modelData.name) ? "Primary" : ""
+                                    text: "Primary"
                                     color: Config.text
                                     font.pixelSize: Config.scFont(12)
                                     font.family: Config.fontFamily
@@ -3190,128 +1792,41 @@ FloatingWindow {
                                     id: monitorSettingsColumn
                                     width: parent.width
 
-                                    // Resolution/Mode
-                                    Item {
-                                        width: parent.width
-                                        height: Config.sc(60)
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: Config.sc(20)
-                                            anchors.rightMargin: Config.sc(20)
-
-                                            Text {
-                                                text: "Mode"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
-
-                                            Item {
-                                                Layout.fillWidth: true
-                                            }
-
-                                            ModeSelector {
-                                                Layout.alignment: Qt.AlignVCenter
-                                                modes: modelData.modes
-                                                currentMode: modelData.currentMode
-                                                onModeSelected: function (mode) {
-                                                    for (let i = 0; i < displayPanel.setMonitor.length; i++) {
-                                                        if (displayPanel.setMonitor[i].name === modelData.name) {
-                                                            displayPanel.setMonitor[i].currentMode = mode;
-                                                            break;
-                                                        }
+                                    SettingRow { label: "Mode"
+                                        ModeSelector {
+                                            modes: modelData.modes
+                                            currentMode: modelData.currentMode
+                                            onModeSelected: function(mode) {
+                                                for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                                    if (displayPanel.setMonitor[i].name === modelData.name) {
+                                                        displayPanel.setMonitor[i].currentMode = mode;
+                                                        break;
                                                     }
                                                 }
                                             }
                                         }
-
-                                        Rectangle {
-                                            anchors.bottom: parent.bottom
-                                            width: parent.width
-                                            height: 1
-                                            color: Config.progressColor
-                                            opacity: 1
-                                        }
                                     }
 
-                                    // Scale
-                                    Item {
-                                        width: parent.width
-                                        height: Config.sc(60)
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: Config.sc(20)
-                                            anchors.rightMargin: Config.sc(20)
-
-                                            Text {
-                                                text: "Scale"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
-
-                                            Item {
-                                                Layout.fillWidth: true
-                                            }
-
-                                            NumberField {
-                                                Layout.alignment: Qt.AlignVCenter
-                                                value: modelData.scale || "1"
-                                                suffix: "x"
-                                                onValueChanged: {
-                                                    for (let i = 0; i < displayPanel.setMonitor.length; i++) {
-                                                        if (displayPanel.setMonitor[i].name === modelData.name) {
-                                                            displayPanel.setMonitor[i].scale = value;
-                                                            break;
-                                                        }
+                                    SettingRow { label: "Scale"
+                                        NumberField {
+                                            value: modelData.scale || "1"
+                                            suffix: "x"
+                                            onValueChanged: {
+                                                for (let i = 0; i < displayPanel.setMonitor.length; i++) {
+                                                    if (displayPanel.setMonitor[i].name === modelData.name) {
+                                                        displayPanel.setMonitor[i].scale = value;
+                                                        break;
                                                     }
                                                 }
                                             }
                                         }
-
-                                        Rectangle {
-                                            anchors.bottom: parent.bottom
-                                            width: parent.width
-                                            height: 1
-                                            color: Config.progressColor
-                                            opacity: 1
-                                        }
                                     }
 
-                                    // Set Primary Monitor
-                                    Item {
-                                        width: parent.width
-                                        height: Config.sc(60)
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: Config.sc(20)
-                                            anchors.rightMargin: Config.sc(20)
-
-                                            Text {
-                                                text: "Set Primary Monitor"
-                                                color: Config.text
-                                                font.pixelSize: Config.scFont(15)
-                                                font.family: Config.fontFamily
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
-
-                                            Item {
-                                                Layout.fillWidth: true
-                                            }
-
-                                            ToggleSwitch {
-                                                Layout.alignment: Qt.AlignVCenter
-                                                bindable: true
-                                                checked: displayPanel.isPrimary(modelData.name)
-                                                onToggled: {
-                                                    displayPanel.setPriScreen = modelData.name;
-                                                }
-                                            }
+                                    SettingRow { label: "Set Primary Monitor"
+                                        ToggleSwitch {
+                                            bindable: true
+                                            checked: displayPanel.isPrimary(modelData.name)
+                                            onToggled: displayPanel.setPriScreen = modelData.name;
                                         }
                                     }
                                 }
@@ -3319,9 +1834,7 @@ FloatingWindow {
                         }
                     }
 
-                    Item {
-                        Layout.fillHeight: true
-                    }
+                    Item { Layout.fillHeight: true; }
                 }
             }
         }
